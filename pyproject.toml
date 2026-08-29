@@ -1,0 +1,22 @@
+[project]
+name = "bujo-digitizer"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Josep Marcello", email = "jspmarcello@live.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.141.1",
+    "openrouter>=1.1.103",
+    "pydantic>=2.12.5",
+    "uvicorn>=0.52.4",
+]
+
+[project.scripts]
+bujo-digitizer = "bujo_digitizer:main"
+
+[build-system]
+requires = ["uv_build>=0.12.7,<0.13.0"]
+build-backend = "uv_build"
