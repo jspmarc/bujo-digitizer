@@ -1,0 +1,28 @@
+{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "time": {
+        "type": "string",
+        "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+        "description": "Time in 24-hour HH:mm format"
+      },
+      "bujos": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["THOUGHT","FEELING","EVENT","PENDING_TASK","FINISHED_TASK","CANCELLED_TASK","FUTURE_TASK","OBSIDIAN_TASK"]
+            },
+            "note": { "type": "string", "description": "Content of the bujo entry" }
+          },
+          "required": ["type", "note"]
+        }
+      }
+    },
+    "required": ["time", "bujos"]
+  }
+}

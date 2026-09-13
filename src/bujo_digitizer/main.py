@@ -1,6 +1,10 @@
+import logging
+
 from fastapi import FastAPI
 
 from bujo_digitizer.views import router
+
+logging.basicConfig(level=logging.DEBUG)
 
 app = FastAPI(title="Bujo Digitizer", version="0.1.0")
 app.include_router(router)
