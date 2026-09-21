@@ -15,18 +15,6 @@ from bujo_digitizer.models import (
 logger = logging.getLogger(__name__)
 
 
-@lru_cache
-def _load_parser_prompt() -> str:
-    prompt = resources.files("bujo_digitizer").joinpath("prompts", "parser.md").read_text()
-    json_format = resources.files("bujo_digitizer").joinpath("prompts", "parser_format.json").read_text()
-    return prompt.replace("<###JSON_FORMAT###>", json_format)
-
-
-@lru_cache
-def _load_ocr_prompt() -> str:
-    return resources.files("bujo_digitizer").joinpath("prompts", "ocr.md").read_text()
-
-
 class DigitizeController:
     def __init__(self):
         openai_client_settings = get_settings()
@@ -36,12 +24,25 @@ class DigitizeController:
             max_retries=1,
         )
 
+    @classmethod
+    @lru_cache
+    def __load_parser_prompt(cls) -> str:
+        prompt = resources.files("bujo_digitizer").joinpath("prompts", "parser.md").read_text()
+        json_format = resources.files("bujo_digitizer").joinpath("prompts", "parser_format.json").read_text()
+        return prompt.replace("<###JSON_FORMAT###>", json_format)
+
+
+    @classmethod
+    @lru_cache
+    def __load_ocr_prompt(cls) -> str:
+        return resources.files("bujo_digitizer").joinpath("prompts", "ocr.md").read_text()
+
     async def digitize(self, request: DigitizeRequest) -> DigitizeResponse:
         client = self._client
 
         content = [
             {"type": "input_image", "image_url": request.image_url},
-            {"type": "input_text", "text": _load_ocr_prompt()},
+            {"type": "input_text", "text": self.__load_ocr_prompt()},
         ]
 
         response = await client.responses.create(
@@ -50,11 +51,11 @@ class DigitizeController:
             temperature=0.2,
             extra_body={"reasoning_budget_tokens": 3072},
         )
-
         ocr_result = "\n".join(
             part.text for item in response.output if item.type == "reasoning" and item.content for part in item.content
         )
         logger.debug("OCR LLM response: %s", ocr_result)
+
         content = [
             {"type": "input_image", "image_url": request.image_url},
             {"type": "input_text", "text": ocr_result},
@@ -62,7 +63,7 @@ class DigitizeController:
         response = await client.responses.parse(
             model="qwen-3.8-27b-vision",
             input=[
-                {"role": "system", "content": _load_parser_prompt()},
+                {"role": "system", "content": self.__load_parser_prompt()},
                 {"role": "user", "content": content},
             ],
             reasoning={"effort": "low"},
