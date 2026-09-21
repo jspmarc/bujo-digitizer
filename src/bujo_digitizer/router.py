@@ -9,9 +9,9 @@ controller = DigitizeController()
 
 @router.get("/health", response_model=HealthResponse)
 async def health():
-    return await controller.health()
+	return await controller.health()
 
 
 @router.post("/digitize", response_model=DigitizeResponse)
 async def digitize(request: DigitizeRequest):
-    return await controller.digitize(request)
+	return await controller.digitize(request)

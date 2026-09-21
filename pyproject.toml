@@ -8,6 +8,7 @@ authors = [
 ]
 requires-python = ">=3.14"
 dependencies = [
+    "beautifulsoup4>=4.15.0",
     "fastapi>=0.141.1",
     "openai>=3.13.0",
     "openrouter>=1.1.103",
@@ -27,3 +28,6 @@ source-include = ["src/bujo_digitizer/prompts/**"]
 
 [tool.ruff]
 line-length = 120
+
+[tool.ruff.format]
+indent-style = "tab"
