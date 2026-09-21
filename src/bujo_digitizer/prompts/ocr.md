@@ -24,9 +24,9 @@ Output format:
 - Output an HTML fragment only. No `<html>`, no `<body>`, no comments, no
   markdown fences, nothing before or after it.
 - Each transcribed line is a block:
-  `<div data-bbox="x y w h" data-label="Text"><p>LINE</p></div>`
-  where `x y w h` are integers from 0 to 1000 giving the line's bounding box
-  in the image (left, top, width, height).
+  `<div data-bbox="x1 y1 x2 y2" data-label="Text"><p>LINE</p></div>`
+  where `x1 y1 x2 y2` are integers from 0 to 1000 giving the line's bounding
+  box as opposite corners in the image (left, top, right, bottom).
 - Multi-line blocks (continuations, sub-bullets) stay in one `<p>` with
   `<br/>` between lines.
 - Keep struck-through text as `<del>word</del>`, underlined text as

@@ -85,7 +85,7 @@ class DigitizeController:
 		return f"""<pre>
 {parsed}
 </pre>
-<script type="text/html" id="ocr-html">{'\n'.join(str(bb) for bb in ocr_result_with_bb_only)}</script>"""
+<script type="text/html" id="ocr-html">{ocr_result_with_bb_only}</script>"""
 
 	@staticmethod
 	async def health() -> HealthResponse:

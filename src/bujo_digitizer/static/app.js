@@ -31,15 +31,15 @@ result.addEventListener("htmx:afterSwap", (event) => {
 	const raw = boxes.flatMap((b) => b.dataset.bbox.trim().split(/\s+/).map(Number));
 	const normalized = raw.every((v) => v <= 1000);
 	for (const b of boxes) {
-		const [x, y, w, h] = b.dataset.bbox.trim().split(/\s+/).map(Number);
-		const dx = normalized ? 10 : page.naturalWidth;
-		const dy = normalized ? 10 : page.naturalHeight;
+		const [x1, y1, x2, y2] = b.dataset.bbox.trim().split(/\s+/).map(Number);
+		const dx = normalized ? 1000 : page.naturalWidth;
+		const dy = normalized ? 1000 : page.naturalHeight;
 		const div = document.createElement("div");
 		div.className = "bbox";
-		div.style.left = `${(x / dx) * 100}%`;
-		div.style.top = `${(y / dy) * 100}%`;
-		div.style.width = `${(w / dx) * 100}%`;
-		div.style.height = `${(h / dy) * 100}%`;
+		div.style.left = `${(x1 / dx) * 100}%`;
+		div.style.top = `${(y1 / dy) * 100}%`;
+		div.style.width = `${((x2 - x1) / dx) * 100}%`;
+		div.style.height = `${((y2 - y1) / dy) * 100}%`;
 		overlay.appendChild(div);
 	}
 });
