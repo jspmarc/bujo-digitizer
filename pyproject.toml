@@ -8,11 +8,13 @@ authors = [
 ]
 requires-python = ">=3.14"
 dependencies = [
-    "beautifulsoup4>=4.15.0",
     "fastapi>=0.141.1",
+    "filetype>=1.2.0",
+    "jinja2>=3.1.6",
     "openai>=3.13.0",
     "openrouter>=1.1.103",
     "pydantic>=2.12.5",
+    "python-multipart>=0.0.32",
     "uvicorn>=0.52.4",
 ]
 
@@ -24,7 +26,9 @@ requires = ["uv_build>=0.12.7,<0.13.0"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
-source-include = ["src/bujo_digitizer/prompts/**"]
+source-include = [    "src/bujo_digitizer/prompts/**",
+    "src/bujo_digitizer/templates/**",
+    "src/bujo_digitizer/static/**"]
 
 [tool.ruff]
 line-length = 120

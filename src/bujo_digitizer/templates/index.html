@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Bujo Digitizer</title>
+	<script src="https://unpkg.com/htmx.org@2"></script>
+	<script src="/static/app.js" defer></script>
+	<style>
+		body {
+			font-family: system-ui, sans-serif;
+			max-width: 48rem;
+			margin: 2rem auto;
+			padding: 0 1rem;
+		}
+
+		.bujo-entry {
+			border-left: 4px solid #4f46e5;
+			padding: .5rem .75rem;
+			margin: .5rem 0;
+			background: #f3f4f6;
+		}
+
+		.bujo-entry .note {
+			font-family: monospace;
+			white-space: pre-wrap;
+		}
+
+		.bujo-entry .type {
+			font-size: .75rem;
+			text-transform: uppercase;
+			color: #6b7280;
+		}
+
+		.time-label {
+			font-weight: bold;
+			margin: 1rem 0 0;
+		}
+	</style>
+</head>
+
+<body hx-boost="true" id="app">
+	<h1>Bujo Digitizer</h1>
+
+	<form hx-post="/digitize/html" hx-encoding="multipart/form-data" hx-target="#result">
+		<input type="file" id="bujo-page" name="image" accept="image/*" required>
+		<button type="submit" id="submit-btn">Digitize</button>
+	</form>
+
+	<div id="result"></div>
+
+</body>
+
+</html>
