@@ -40,6 +40,12 @@ result.addEventListener("htmx:afterSwap", (event) => {
 		div.style.top = `${(y1 / dy) * 100}%`;
 		div.style.width = `${((x2 - x1) / dx) * 100}%`;
 		div.style.height = `${((y2 - y1) / dy) * 100}%`;
+
+		const label = document.createElement("span");
+		label.className = "bbox-label";
+		label.textContent = b.textContent;
+
+		div.appendChild(label);
 		overlay.appendChild(div);
 	}
 });
