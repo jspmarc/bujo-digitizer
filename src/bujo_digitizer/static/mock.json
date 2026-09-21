@@ -1,0 +1,60 @@
+[
+	{
+		"time": "09:30",
+		"bujos": [
+			{
+				"type": "EVENT",
+				"note": "Anti - schedule interesting\n> Write the schedule for the Review activities\n> Write how many hours put in for work. -> graph it. 0 is baseline\nI think the work philosophy is\nwork time is more dynamic.\nCan this be used for tasks?"
+			}
+		]
+	},
+	{
+		"time": "10:54",
+		"bujos": [
+			{
+				"type": "PENDING_TASK",
+				"note": "Urtiga / send / food"
+			}
+		]
+	},
+	{
+		"time": "10:21",
+		"bujos": [
+			{
+				"type": "FINISHED_TASK",
+				"note": "Consider class class"
+			},
+			{
+				"type": "FINISHED_TASK",
+				"note": "Kitting rent & bills"
+			}
+		]
+	},
+	{
+		"time": "14:15",
+		"bujos": [
+			{
+				"type": "FINISHED_TASK",
+				"note": "Fix tailcode DNS not working"
+			}
+		]
+	},
+	{
+		"time": "15:55",
+		"bujos": [
+			{
+				"type": "FEELING",
+				"note": "Lays2 makes A gen mood boys"
+			}
+		]
+	},
+	{
+		"time": "23:50",
+		"bujos": [
+			{
+				"type": "EVENT",
+				"note": "The last entry of this good notebook"
+			}
+		]
+	}
+]

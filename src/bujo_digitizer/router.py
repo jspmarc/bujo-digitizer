@@ -4,10 +4,11 @@ from importlib import resources
 
 import filetype
 from fastapi import APIRouter, HTTPException, Request, UploadFile, status
+from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from bujo_digitizer.controllers import DigitizeController
-from bujo_digitizer.models import DigitizeRequest, DigitizeResponse, HealthResponse
+from bujo_digitizer.models import DigitizeRequest, HealthResponse
 
 MAX_BYTES = 15 * 1024 * 1024  # 15 MB
 # 12 bytes should be enough to determine the mime type of an image file (up to JPEG-XL).
@@ -29,11 +30,6 @@ async def health():
 	return await controller.health()
 
 
-@router.post("/digitize", response_model=DigitizeResponse)
-async def digitize(request: DigitizeRequest):
-	return await controller.digitize(request)
-
-
 @router.post("/digitize/html", include_in_schema=False)
 async def digitize_html(request: Request, image: UploadFile):
 	content = await image.read()
@@ -48,4 +44,4 @@ async def digitize_html(request: Request, image: UploadFile):
 	image_url = f"data:{mime};base64,{b64}"
 	logger.info("first 20 characters of base64-encoded URL: %s", b64[:20])
 	response = await controller.digitize(DigitizeRequest(image_url=image_url))
-	return templates.TemplateResponse(request, "digitize_result.html", {"data": response.content})
+	return HTMLResponse(content=response)

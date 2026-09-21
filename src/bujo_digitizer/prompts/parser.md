@@ -48,12 +48,12 @@ Rules:
 	 timestamp** that appeared before it in reading order. The `HH:mm` can appear
 	 anywhere on a line (start or elsewhere). If an entry appears before any
 	 timestamp at all, use `"time": ""`.
-3. **The OCR result is the reference for content and structure.** Parse from
-	 the OCR text: note content, line order, line breaks, bullet markers, and
-	 timestamps. The image is a best-effort aid only — consult it to
-	 disambiguate when the OCR misreads a bullet marker (e.g. ・ → ., ,, 、, ·;
-	 ◯ → o, 0; * → x, ＊) or is otherwise unclear. When they conflict, prefer
-	 the OCR result.
+3. **The OCR result is the main reference for content and structure.** Parse
+	 from the OCR text: note content, line order, line breaks, bullet markers,
+	 and timestamps. The image is a best-effort aid only — consult it to
+	 disambiguate when the OCR misreads a bullet marker (e.g. ・ → ., ,, 、, ·; ◯
+	 → o, 0; * → x, ＊) or is otherwise unclear. When they conflict, prefer the
+	 OCR result.
 4. Contextual Continuation: Any line following a primary bullet that does not
 	 start with a primary marker (such as numbered lists 1., 2., indented
 	 sub-bullets, or plain continuation text) must be appended to the note of the

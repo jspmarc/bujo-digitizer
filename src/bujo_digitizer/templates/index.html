@@ -37,6 +37,34 @@
 			font-weight: bold;
 			margin: 1rem 0 0;
 		}
+
+		#preview {
+			position: relative;
+			display: none;
+			margin: 1rem 0;
+			max-width: 100%;
+		}
+
+		#preview.visible {
+			display: inline-block;
+		}
+
+		#preview img {
+			max-width: 100%;
+			display: block;
+		}
+
+		#overlay {
+			position: absolute;
+			inset: 0;
+			pointer-events: none;
+		}
+
+		.bbox {
+			position: absolute;
+			border: 1px solid #4f46e5;
+			background: rgba(79, 70, 229, .08);
+		}
 	</style>
 </head>
 
@@ -47,6 +75,11 @@
 		<input type="file" id="bujo-page" name="image" accept="image/*" required>
 		<button type="submit" id="submit-btn">Digitize</button>
 	</form>
+
+	<div id="preview">
+		<img id="page" alt="Uploaded page preview">
+		<div id="overlay"></div>
+	</div>
 
 	<div id="result"></div>
 

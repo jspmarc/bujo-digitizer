@@ -1,13 +1,14 @@
+import json
 import logging
 from functools import lru_cache
 from importlib import resources
 
+from bs4 import BeautifulSoup
 from openai import AsyncOpenAI
 
 from bujo_digitizer.config import get_settings
 from bujo_digitizer.models import (
 	DigitizeRequest,
-	DigitizeResponse,
 	HealthResponse,
 	ParserOutput,
 )
@@ -36,7 +37,7 @@ class DigitizeController:
 	def __load_ocr_prompt(cls) -> str:
 		return resources.files("bujo_digitizer").joinpath("prompts", "ocr.md").read_text()
 
-	async def digitize(self, request: DigitizeRequest) -> DigitizeResponse:
+	async def digitize(self, request: DigitizeRequest) -> str:
 		client = self._client
 
 		content = [
@@ -47,13 +48,18 @@ class DigitizeController:
 		response = await client.responses.create(
 			model="chandra-ocr-2",
 			input=[{"role": "user", "content": content}],
-			temperature=0.2,
+			temperature=0.5,
 			extra_body={"reasoning_budget_tokens": 3072},
 		)
 		ocr_result = "\n".join(
 			part.text for item in response.output if item.type == "reasoning" and item.content for part in item.content
 		)
 		logger.debug("OCR LLM response: %s", ocr_result)
+
+		bs = BeautifulSoup(ocr_result)
+		ocr_result_with_bb_only = bs.select("div[data-bbox]")
+		ocr_result = "\n".join([x.get_text() for x in ocr_result_with_bb_only])
+		logger.debug("OCR Result cleaned: %s", ocr_result)
 
 		content = [
 			{"type": "input_image", "image_url": request.image_url},
@@ -67,17 +73,19 @@ class DigitizeController:
 			],
 			reasoning={"effort": "low"},
 			text_format=ParserOutput,
-			timeout=120.0,
-			temperature=0.2,
-			extra_body={"reasoning_budget_tokens": 1024},
+			timeout=60.0,
+			temperature=0.6,
+			top_p=0.95,
+			extra_body={"reasoning_budget_tokens": 256},
 		)
 		logger.debug("Parser LLM raw response: %s", response.output_text)
 		logger.debug("Parser LLM response: %s", response.output_parsed)
+		parsed = response.output_parsed.model_dump_json(ensure_ascii=True, indent=4) if response.output_parsed is not None else "null"
 
-		return DigitizeResponse(
-			id=response.id,
-			content=response.output_parsed,
-		)
+		return f"""<pre>
+{parsed}
+</pre>
+<script type="text/html" id="ocr-html">{'\n'.join(str(bb) for bb in ocr_result_with_bb_only)}</script>"""
 
 	@staticmethod
 	async def health() -> HealthResponse:

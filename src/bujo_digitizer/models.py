@@ -32,10 +32,5 @@ class DigitizeRequest(BaseModel):
 	image_url: str
 
 
-class DigitizeResponse(BaseModel):
-	id: str
-	content: ParserOutput | None
-
-
 class HealthResponse(BaseModel):
 	status: str
