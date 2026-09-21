@@ -2,7 +2,7 @@ import logging
 
 from fastapi import FastAPI
 
-from bujo_digitizer.views import router
+from bujo_digitizer.router import router
 
 logging.basicConfig(level=logging.DEBUG)
 

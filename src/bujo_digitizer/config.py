@@ -11,5 +11,5 @@ class Settings(BaseModel):
 def get_settings() -> Settings:
     return Settings(
         openai_api_key=os.environ.get("BUJO_DIGITIZER_OPENAI_API_KEY", "a"),
-        openai_base_url=os.environ.get("BUJO_DIGITIZER_OPENAI_BASE_URL"),
+        openai_base_url=os.environ.get("BUJO_DIGITIZER_OPENAI_BASE_URL", "https://llm.box.jspmarc.dev"),
     )
