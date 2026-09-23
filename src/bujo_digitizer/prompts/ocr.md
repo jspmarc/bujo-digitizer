@@ -13,8 +13,8 @@ Rules:
    otherwise drop it.
 5. Do not normalize or interpret bullet marks. Transcribe the visible character
    as-is (e.g. ・, ◯, =, -, *, ->, <-). The reader handles their meaning.
-  - There might sub-bullets. Transcribe the sub-bullets as sub-bullets of the
-    main bullets.
+  - There might be sub-bullets. Transcribe the sub-bullets as sub-bullets of
+    the main bullets.
 6. Do not correct spelling, grammar, or wording. Transcribe what is visible,
    not what you think was meant.
 7. Do not add commentary, headers, or explanations. Output only the HTML

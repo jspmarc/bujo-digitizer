@@ -54,16 +54,18 @@ Rules:
 	 disambiguate when the OCR misreads a bullet marker (e.g. ・ → ., ,, 、, ·; ◯
 	 → o, 0; * → x, ＊) or is otherwise unclear. When they conflict, prefer the
 	 OCR result.
-4. Contextual Continuation: Any line following a primary bullet that does not
-	 start with a primary marker (such as numbered lists 1., 2., indented
-	 sub-bullets, or plain continuation text) must be appended to the note of the
-	 preceding primary bullet.
-	1. Use a newline \n to separate these lines within the note string.
-	2. If a line starts with a primary marker, it begins a new entry and
-		 "closes" the previous one.
-5. Ignore Noise: Ignore lines that are clearly non-bulleted content (e.g.,
+4. Sub-entries: A bulleted line that is indented under (subordinate to) a
+	 preceding entry is a `sub_entries` element of that preceding entry, not a
+	 new top-level `bujos` entry. Sub-entries use the same bullet-type mapping
+	 and may themselves have sub-entries, recursively. Add `sub_entries` only
+	 when an entry has sub-entries; otherwise omit it (or use `[]`).
+5. Contextual Continuation: Any line following an entry that is **not** itself a
+	 bulleted entry (such as numbered list items 1., 2., or plain continuation
+	 text) must be appended to the `note` of the preceding entry. Use a newline
+	 \n to separate these lines within the `note` string.
+6. Ignore Noise: Ignore lines that are clearly non-bulleted content (e.g.,
 	 dates, standalone headers, page numbers) unless they are being merged into a
-	 preceding bullet per Rule 4.
+	 preceding bullet per Rule 5.
 
 
 The output MUST conform to this JSON Schema:
@@ -82,11 +84,13 @@ Here is an example output:
 		"bujos": [
 			{
 				"type": "THOUGHT",
-				"note": "I think we can move A to B now..."
+				"note": "I think we can move A to B now...",
+				"sub_entries": []
 			},
 			{
 				"type": "FEELING",
-				"note": "Work today is so boring!"
+				"note": "Work today is so boring!",
+				"sub_entries": []
 			}
 		]
 	},
@@ -95,7 +99,19 @@ Here is an example output:
 		"bujos": [
 			{
 				"type": "PENDING_TASK",
-				"note": "Move A to B"
+				"note": "Move A to B",
+				"sub_entries": [
+					{
+						"type": "PENDING_TASK",
+						"note": "Book the van",
+						"sub_entries": []
+					},
+					{
+						"type": "FINISHED_TASK",
+						"note": "Measure the doorway",
+						"sub_entries": []
+					}
+				]
 			}
 		]
 	},
@@ -104,7 +120,8 @@ Here is an example output:
 		"bujos": [
 			{
 				"type": "EVENT",
-				"note": "Ke take jam tangan.\n1. Beli offine jauh lebih murah.\n2. Oceanus' build quality & finishing miles better\nV.S. other watches @ same price.\n3. Probably gak butuh jam tangan?\n(mau)->udah cukup koleksi aja"
+				"note": "Ke take jam tangan.\n1. Beli offine jauh lebih murah.\n2. Oceanus' build quality & finishing miles better\nV.S. other watches @ same price.\n3. Probably gak butuh jam tangan?\n(mau)->udah cukup koleksi aja",
+				"sub_entries": []
 			}
 		]
 	}

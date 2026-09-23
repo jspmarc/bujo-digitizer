@@ -18,6 +18,7 @@ class BujoType(str, Enum):
 class BujoEntry(BaseModel):
 	type: BujoType
 	note: str
+	sub_entries: list[BujoEntry] | None = None
 
 
 class BujoTimeGroup(BaseModel):
@@ -25,8 +26,35 @@ class BujoTimeGroup(BaseModel):
 	bujos: list[BujoEntry]
 
 
+_MARKERS: dict[BujoType, str] = {
+	BujoType.THOUGHT: "(T)",
+	BujoType.FEELING: "(F)",
+	BujoType.EVENT: "(E)",
+	BujoType.PENDING_TASK: "[ ]",
+	BujoType.CANCELLED_TASK: "[-]",
+	BujoType.FINISHED_TASK: "[x]",
+	BujoType.FUTURE_TASK: "[>]",
+	BujoType.OBSIDIAN_TASK: "[<]",
+}
+
+
+def _format_entries(entries: list[BujoEntry], depth: int = 0) -> list[str]:
+	lines = []
+	for entry in entries:
+		indent = "\t" * depth
+		lines.append(f"{indent}- {_MARKERS[entry.type]} {entry.note}")
+		lines += _format_entries(entry.sub_entries or [], depth + 1)
+	return lines
+
+
 class ParserOutput(RootModel[list[BujoTimeGroup]]):
-	pass
+	def to_markdown(self) -> str:
+		groups = []
+		for group in self.root:
+			lines = [group.time] if group.time else []
+			lines += _format_entries(group.bujos)
+			groups.append("\n".join(lines))
+		return "\n\n".join(groups)
 
 
 class DigitizeRequest(BaseModel):

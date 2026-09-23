@@ -1,26 +1,34 @@
 {
+  "$defs": {
+    "bujo_entry": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["THOUGHT","FEELING","EVENT","PENDING_TASK","FINISHED_TASK","CANCELLED_TASK","FUTURE_TASK","OBSIDIAN_TASK"]
+        },
+        "note": { "type": "string", "description": "Content of the bujo entry" },
+        "sub_entries": {
+          "type": ["array", "null"],
+          "description": "Nested sub-entries belonging to this entry, each with the same shape (recursively). Omit or set to null when there are none.",
+          "items": { "$ref": "#/$defs/bujo_entry" }
+        }
+      },
+      "required": ["type", "note"]
+    }
+  },
   "type": "array",
   "items": {
     "type": "object",
     "properties": {
       "time": {
         "type": "string",
-        "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
-        "description": "Time in 24-hour HH:mm format"
+        "pattern": "^$|([01]\\d|2[0-9]):[0-5]\\d$",
+        "description": "Time in 24-hour HH:mm format, or an empty string when the entry precedes any timestamp"
       },
       "bujos": {
         "type": "array",
-        "items": {
-          "type": "object",
-          "properties": {
-            "type": {
-              "type": "string",
-              "enum": ["THOUGHT","FEELING","EVENT","PENDING_TASK","FINISHED_TASK","CANCELLED_TASK","FUTURE_TASK","OBSIDIAN_TASK"]
-            },
-            "note": { "type": "string", "description": "Content of the bujo entry" }
-          },
-          "required": ["type", "note"]
-        }
+        "items": { "$ref": "#/$defs/bujo_entry" }
       }
     },
     "required": ["time", "bujos"]
