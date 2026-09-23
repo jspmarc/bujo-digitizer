@@ -1,0 +1,13 @@
+.git
+.gitignore
+.venv
+__pycache__
+*.py[cod]
+*.egg-info
+.ruff_cache
+.opencode
+.swarm
+build
+dist
+wheels
+body.json
