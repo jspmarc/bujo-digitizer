@@ -1,3 +1,17 @@
+{% if jobs %}
+<h2>Digitizing</h2>
+<ul>
+	{% for job in jobs %}
+	<li>
+		<span>[{{ job.status }}]</span>
+		document {{ job.doc_title }} (Paperless ID: {{ job.paperless_doc_id }},
+		attempt {{ job.attempts }}/{{ job.max_attempts }})
+		{% if job.last_error %}<br /><small>{{ job.last_error }}</small>{% endif %}
+	</li>
+	{% endfor %}
+</ul>
+{% endif %}
+<h2>Ready for review</h2>
 <ul>
 	{% for row in rows %}
 	<li>

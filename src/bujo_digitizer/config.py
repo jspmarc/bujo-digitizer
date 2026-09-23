@@ -12,6 +12,9 @@ class Settings(BaseSettings):
 	paperless_base_url: str = Field(alias="PAPERLESS_BASE_URL")
 	paperless_token: str = Field(alias="PAPERLESS_TOKEN")
 	sqlite_path: str = Field(default="./bujo_digitizer.sqlite3", alias="SQLITE_PATH")
+	worker_poll_seconds: float = Field(default=2.0, alias="WORKER_POLL_SECONDS")
+	worker_concurrency: int = Field(default=1, alias="WORKER_CONCURRENCY")
+	job_max_attempts: int = Field(default=3, alias="JOB_MAX_ATTEMPTS")
 
 
 @lru_cache

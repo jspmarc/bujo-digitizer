@@ -5,15 +5,19 @@ from importlib import resources
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from bujo_digitizer.router import close_resources, router
+from bujo_digitizer.router import close_resources, router, worker
 
 logging.basicConfig(level=logging.DEBUG)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-	yield
-	await close_resources()
+	await worker.start()
+	try:
+		yield
+	finally:
+		await worker.aclose()
+		await close_resources()
 
 
 app = FastAPI(title="Bujo Digitizer", version="0.1.0", lifespan=lifespan)

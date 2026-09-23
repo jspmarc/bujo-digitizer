@@ -5,6 +5,7 @@ from io import BytesIO
 import pypdfium2 as pdfium
 
 RASTER_MIME_TYPE = "image/jpeg"
+MAX_BYTES = 15 * 1024 * 1024  # 15 MB
 RENDER_DPI = 200
 MAX_IMAGE_DIMENSION = 2400
 
