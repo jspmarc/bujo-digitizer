@@ -2,10 +2,12 @@ import logging
 from functools import lru_cache
 from importlib import resources
 
+import httpx
 from bs4 import BeautifulSoup
 from openai import AsyncOpenAI
 
 from bujo_digitizer.config import get_settings
+from bujo_digitizer.exceptions import PaperlessControllerException
 from bujo_digitizer.models import (
 	DigitizeRequest,
 	DigitizeResponse,
@@ -14,6 +16,29 @@ from bujo_digitizer.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class PaperlessController:
+	def __init__(self, base_url: str, token: str):
+		self._base_url: str = base_url
+		self._token: str = token
+
+	def _get_headers(self) -> dict[str, str]:
+		return {"Authorization": f"Token {self._token}"}
+
+	async def download_document(self, id: int) -> tuple[bytes, str | None]:
+		doc_url = f"{self._base_url}/documents/{id}/download"
+		try:
+			async with httpx.AsyncClient(timeout=30.0) as client:
+				response = await client.get(doc_url, headers=self._get_headers())
+				_ = response.raise_for_status()
+		except httpx.HTTPStatusError as exc:
+			raise PaperlessControllerException(
+				f"Paperless API returned {exc.response.status_code} for {doc_url}."
+			) from exc
+		except httpx.HTTPError as exc:
+			raise PaperlessControllerException("Failed to reach Paperless API") from exc
+		return response.content, response.headers.get("content-type")
 
 
 class DigitizeController:
@@ -80,11 +105,6 @@ class DigitizeController:
 		)
 		logger.debug("Parser LLM raw response: %s", response.output_text)
 		logger.debug("Parser LLM response: %s", response.output_parsed)
-		parsed = (
-			response.output_parsed.model_dump_json(ensure_ascii=True, indent=4)
-			if response.output_parsed is not None
-			else "null"
-		)
 
 		return DigitizeResponse(
 			parser_output=response.output_parsed,

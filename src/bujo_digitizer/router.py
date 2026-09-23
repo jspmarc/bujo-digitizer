@@ -1,4 +1,3 @@
-import json
 import logging
 from base64 import b64encode
 from importlib import resources
@@ -8,16 +7,19 @@ from fastapi import APIRouter, HTTPException, Request, UploadFile, status
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-from bujo_digitizer.controllers import DigitizeController
-from bujo_digitizer.models import DigitizeRequest, HealthResponse
+from bujo_digitizer.config import get_settings
+from bujo_digitizer.controllers import DigitizeController, PaperlessController
+from bujo_digitizer.exceptions import PaperlessControllerException
 
 MAX_BYTES = 15 * 1024 * 1024  # 15 MB
 # 12 bytes should be enough to determine the mime type of an image file (up to JPEG-XL).
 MIME_TYPE_BYTES = 12
 
+settings = get_settings()
 logger = logging.getLogger(__name__)
 router = APIRouter()
 controller = DigitizeController()
+paperless_controller = PaperlessController(settings.paperless_base_url, settings.paperless_token)
 templates = Jinja2Templates(directory=str(resources.files("bujo_digitizer").joinpath("templates")))
 
 
@@ -31,7 +33,7 @@ async def health():
 	return await controller.health()
 
 
-@router.post("/digitize/html", include_in_schema=False)
+@router.post("/digitize/html")
 async def digitize_html(request: Request, image: UploadFile):
 	content = await image.read()
 	if image.size is None or image.size > MAX_BYTES:
@@ -58,3 +60,33 @@ async def digitize_html(request: Request, image: UploadFile):
 <script type="text/html" id="ocr-html">{digitize_response.ocr_result_with_bb}</script>"""
 
 	return HTMLResponse(content=response)
+
+
+@router.post("/digitize/webhook")
+async def digitize_webhook(payload: PaperlessWebhookPayload):
+	logger.info(f"Payload is {payload}")
+
+	try:
+		content, mime = await paperless_controller.download_document(payload.doc_id)
+	except PaperlessControllerException as exc:
+		raise HTTPException(
+			status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+			detail=str(exc),
+		)
+	mime = mime or filetype.guess_mime(content[:MIME_TYPE_BYTES]) or "application/octet-stream"
+	image_url = f"data:{mime};base64,{b64encode(content).decode('ascii')}"
+
+	if len(content) > MAX_BYTES:
+		raise HTTPException(
+			status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+			detail=f"Document's size is {len(content)} bytes. It's larger than {MAX_BYTES / (1024 * 1024)} MB.",
+		)
+
+	result = await controller.digitize(DigitizeRequest(file_url=image_url))
+
+	return {
+		"doc_id": payload.doc_id,
+		"parser_output": result.parser_output.root if result.parser_output is not None else None,
+		"ocr_html": str(result.ocr_result_with_bb),
+	}
+

@@ -1,7 +1,7 @@
 from enum import Enum
 
 from bs4 import ResultSet, Tag
-from pydantic import BaseModel, Field, RootModel
+from pydantic import BaseModel, ConfigDict, Field, RootModel
 
 
 class BujoType(str, Enum):
@@ -42,3 +42,7 @@ class DigitizeResponse(BaseModel):
 
 class HealthResponse(BaseModel):
 	status: str
+
+
+class PaperlessWebhookPayload(BaseModel):
+	doc_id: int

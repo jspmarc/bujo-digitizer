@@ -11,6 +11,7 @@ dependencies = [
     "beautifulsoup4>=4.15.0",
     "fastapi>=0.141.1",
     "filetype>=1.2.0",
+    "httpx>=0.28.1",
     "jinja2>=3.1.6",
     "openai>=3.13.0",
     "openrouter>=1.1.103",
