@@ -11,9 +11,8 @@ def get_logger(name: str | None = None) -> logging.Logger:
 		_setup()
 		_configured = True
 
-	settings = get_settings()
 	if name is None:
-		return logging.getLogger(settings.app_name)
+		return logging.getLogger(__package__)
 	return logging.getLogger(name)
 
 
@@ -24,6 +23,7 @@ def _setup() -> None:
 	handler = logging.StreamHandler()
 	handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
 
-	app_logger = logging.getLogger(settings.app_name)
+	app_logger = logging.getLogger(__package__)
 	app_logger.setLevel(level)
+	app_logger.propagate = False
 	app_logger.addHandler(handler)
