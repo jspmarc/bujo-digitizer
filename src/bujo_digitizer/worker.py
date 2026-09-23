@@ -1,13 +1,13 @@
 import asyncio
 import json
-import logging
 
 from bujo_digitizer.connectors import DigitizeJobRow, DigitizeJobStore, DigitizeResultStore
 from bujo_digitizer.controllers import DigitizeController, PaperlessController
+from bujo_digitizer.logger import get_logger
 from bujo_digitizer.models import DigitizeRequest
 from bujo_digitizer.utils import MAX_BYTES, to_pages
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class DigitizeWorker:

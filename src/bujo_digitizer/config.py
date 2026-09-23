@@ -7,6 +7,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
 	model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+	app_name: str = Field(default="Bujo Digitizer", alias="APP_NAME")
+	log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 	openai_api_key: str = Field(default="a", alias="OPENAI_API_KEY")
 	openai_base_url: str = Field(alias="OPENAI_BASE_URL")
 	paperless_base_url: str = Field(alias="PAPERLESS_BASE_URL")

@@ -1,4 +1,3 @@
-import logging
 from functools import lru_cache
 from importlib import resources
 
@@ -8,6 +7,7 @@ from openai import AsyncOpenAI
 
 from bujo_digitizer.config import get_settings
 from bujo_digitizer.exceptions import PaperlessControllerException
+from bujo_digitizer.logger import get_logger
 from bujo_digitizer.models import (
 	DigitizeRequest,
 	DigitizeResponse,
@@ -15,7 +15,7 @@ from bujo_digitizer.models import (
 	ParserOutput,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class PaperlessController:

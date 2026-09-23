@@ -1,6 +1,5 @@
 import asyncio
 import json
-import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Form, HTTPException, Request, Response, status
@@ -12,13 +11,14 @@ from bujo_digitizer.config import Settings
 from bujo_digitizer.connectors import JOB_STATUS_FAILED, DigitizeJobStore, DigitizeResultStore
 from bujo_digitizer.controllers import DigitizeController, PaperlessController
 from bujo_digitizer.exceptions import PaperlessControllerException
+from bujo_digitizer.logger import get_logger
 from bujo_digitizer.models import HealthResponse, PaperlessWebhookPayload, ParserOutput
 from bujo_digitizer.utils import RASTER_MIME_TYPE
 
 # 12 bytes should be enough to determine the mime type of an image file (up to JPEG-XL).
 MIME_TYPE_BYTES = 12
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class Router:

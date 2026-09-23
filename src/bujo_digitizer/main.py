@@ -1,5 +1,4 @@
 import asyncio
-import logging
 from contextlib import asynccontextmanager
 from importlib import resources
 
@@ -12,8 +11,6 @@ from bujo_digitizer.connectors import DigitizeJobStore, DigitizeResultStore
 from bujo_digitizer.controllers import DigitizeController, PaperlessController
 from bujo_digitizer.router import Router
 from bujo_digitizer.worker import DigitizeWorker
-
-logging.basicConfig(level=logging.DEBUG)
 
 
 def create_app() -> FastAPI:
@@ -53,7 +50,7 @@ def create_app() -> FastAPI:
 			await worker.aclose()
 			_ = await asyncio.gather(controller.aclose(), paperless_controller.aclose())
 
-	app = FastAPI(title="Bujo Digitizer", version="0.1.0", lifespan=lifespan)
+	app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
 	app.include_router(routes.router)
 	app.mount("/static", StaticFiles(directory=resources.files("bujo_digitizer").joinpath("static")), name="static")
 	return app
