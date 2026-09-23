@@ -12,4 +12,11 @@
 	<button type="submit">Update</button>
 </form>
 
+<button
+	hx-delete="/reviews/{{ row.id }}"
+	hx-confirm="This action will delete the review data. Are you sure you want to continue?"
+>
+	Mark as reviewed and delete
+</button>
+
 <div id="update-result"></div>

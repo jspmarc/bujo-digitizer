@@ -4,104 +4,13 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Bujo Digitizer</title>
+	<title>To Review</title>
 	<script src="https://unpkg.com/htmx.org@2"></script>
-	<script src="/static/bbox.js" defer></script>
-	<script src="/static/app.js" defer></script>
-	<style>
-		body {
-			font-family: system-ui, sans-serif;
-			max-width: 48rem;
-			margin: 2rem auto;
-			padding: 0 1rem;
-		}
-
-		.bujo-entry {
-			border-left: 4px solid #4f46e5;
-			padding: .5rem .75rem;
-			margin: .5rem 0;
-			background: #f3f4f6;
-		}
-
-		.bujo-entry .note {
-			font-family: monospace;
-			white-space: pre-wrap;
-		}
-
-		.bujo-entry .type {
-			font-size: .75rem;
-			text-transform: uppercase;
-			color: #6b7280;
-		}
-
-		.time-label {
-			font-weight: bold;
-			margin: 1rem 0 0;
-		}
-
-		#preview {
-			position: relative;
-			display: none;
-			margin: 1rem 0;
-			max-width: 100%;
-		}
-
-		#preview.visible {
-			display: inline-block;
-		}
-
-		#preview img {
-			max-width: 100%;
-			display: block;
-		}
-
-		#overlay {
-			position: absolute;
-			inset: 0;
-			pointer-events: none;
-		}
-
-		.bbox {
-			position: absolute;
-			pointer-events: auto;
-			border: 1px solid #4f46e5;
-			background: rgba(79, 70, 229, .08);
-		}
-
-		.bbox-label {
-			display: none;
-			font-size: .625rem;
-			background: #4f46e5;
-			color: #fff;
-			padding: 0 .25rem;
-			white-space: nowrap;
-		}
-
-		.bbox:hover {
-			background: rgba(255, 165, 0, 0.8);
-		}
-
-		.bbox:hover .bbox-label {
-			display: block;
-		}
-	</style>
 </head>
 
-<body hx-boost="true" id="app">
-	<h1>Bujo Digitizer</h1>
-
-	<form hx-post="/digitize/html" hx-encoding="multipart/form-data" hx-target="#result">
-		<input type="file" id="bujo-page" name="image" accept="image/*" required>
-		<button type="submit" id="submit-btn">Digitize</button>
-	</form>
-
-	<div id="preview">
-		<img id="page" alt="Uploaded page preview">
-		<div id="overlay"></div>
-	</div>
-
-	<div id="result"></div>
-
+<body>
+	<h1>To Review</h1>
+	<div hx-get="/reviews" hx-trigger="load"></div>
 </body>
 
 </html>

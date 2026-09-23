@@ -17,8 +17,6 @@ from bujo_digitizer.models import (
 
 logger = logging.getLogger(__name__)
 
-DIGITIZED_TAG_ID = 6
-
 
 def _block_text(div: Tag) -> str:
 	parts: list[str] = []
@@ -73,8 +71,6 @@ class PaperlessController:
 			) from exc
 		except httpx.HTTPError as exc:
 			raise PaperlessControllerException("Failed to reach Paperless API") from exc
-
-		await self.add_document_tag(id, DIGITIZED_TAG_ID)
 
 	async def add_document_tag(self, id: int, tag_id: int) -> None:
 		bulk_url = f"{self._base_url}/api/documents/bulk_edit/"

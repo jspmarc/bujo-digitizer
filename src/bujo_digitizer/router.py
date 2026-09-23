@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 from importlib import resources
+from typing import Annotated
 
 import filetype
 from fastapi import APIRouter, Form, HTTPException, Request, Response, UploadFile, status
@@ -110,12 +111,7 @@ async def digitize_webhook(payload: PaperlessWebhookPayload):
 	}
 
 
-@router.get("/reviews", include_in_schema=False)
-async def reviews_page(request: Request):
-	return templates.TemplateResponse(request, "review.html")
-
-
-@router.get("/reviews/list")
+@router.get("/reviews")
 async def reviews_list(request: Request):
 	rows = await asyncio.to_thread(store.list_all)
 	return templates.TemplateResponse(request, "_review_list.html", {"rows": rows})
@@ -169,7 +165,9 @@ async def review_document(id: int):
 
 
 @router.post("/reviews/{id}")
-async def review_update(id: int, parse_result: str = Form("")):
+async def review_update(id: int, parse_result: Annotated[str, Form()]):
+	DIGITIZED_TAG_ID = 6
+
 	row = await asyncio.to_thread(store.get, id)
 	if row is None:
 		raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Review not found.")
@@ -184,6 +182,7 @@ async def review_update(id: int, parse_result: str = Form("")):
 
 	try:
 		await paperless_controller.update_document_content(row["paperless_doc_id"], content)
+		await paperless_controller.add_document_tag(row["paperless_doc_id"], DIGITIZED_TAG_ID)
 	except PaperlessControllerException as exc:
 		raise HTTPException(
 			status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -192,3 +191,9 @@ async def review_update(id: int, parse_result: str = Form("")):
 
 	await asyncio.to_thread(store.delete, id)
 	return HTMLResponse(content="Updated.")
+
+
+@router.delete("/reviews/{id}")
+async def review_delete(id: int):
+	await asyncio.to_thread(store.delete, id)
+	return HTMLResponse(content="Deleted.")
