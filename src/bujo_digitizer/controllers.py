@@ -18,16 +18,6 @@ from bujo_digitizer.models import (
 logger = logging.getLogger(__name__)
 
 
-def _block_text(div: Tag) -> str:
-	parts: list[str] = []
-	for child in div.descendants:
-		if isinstance(child, NavigableString):
-			parts.append(str(child))
-		elif getattr(child, "name", None) == "br":
-			parts.append("\n")
-	return "".join(parts)
-
-
 class PaperlessController:
 	def __init__(self, base_url: str, token: str):
 		self._base_url: str = base_url
@@ -118,6 +108,16 @@ class DigitizeController:
 	def __load_ocr_prompt(cls) -> str:
 		return resources.files("bujo_digitizer").joinpath("prompts", "ocr.md").read_text()
 
+	@staticmethod
+	def _block_text(div: Tag) -> str:
+		parts: list[str] = []
+		for child in div.descendants:
+			if isinstance(child, NavigableString):
+				parts.append(str(child))
+			elif getattr(child, "name", None) == "br":
+				parts.append("\n")
+		return "".join(parts)
+
 	async def digitize(self, request: DigitizeRequest) -> DigitizeResponse:
 		client = self._client
 
@@ -147,7 +147,7 @@ class DigitizeController:
 			bs = BeautifulSoup(ocr_result)
 			page_boxes = bs.select("div[data-bbox]")
 			ocr_results_with_bb.append(page_boxes)
-			ocr_texts.append("\n".join(_block_text(x) for x in page_boxes))
+			ocr_texts.append("\n".join(self._block_text(x) for x in page_boxes))
 			logger.debug("OCR result cleaned: %s", ocr_texts[-1])
 
 		content = [{"type": "input_image", "image_url": file_url} for file_url in request.file_urls]
