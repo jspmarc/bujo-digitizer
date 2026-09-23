@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Review {{ id }}</title>
+	<script src="https://unpkg.com/htmx.org@2"></script>
+	<script src="/static/bbox.js" defer></script>
+	<style>
+		.page {
+			position: relative;
+			display: inline-block;
+			max-width: 100%;
+			margin: 1rem 0;
+		}
+
+		.page img {
+			max-width: 100%;
+			display: block;
+		}
+
+		.page .overlay {
+			position: absolute;
+			inset: 0;
+			pointer-events: none;
+		}
+
+		.bbox {
+			position: absolute;
+			pointer-events: auto;
+			border: 1px solid #4f46e5;
+			background: rgba(79, 70, 229, .08);
+		}
+
+		.bbox-label {
+			display: none;
+			font-size: .625rem;
+			background: #4f46e5;
+			color: #fff;
+			padding: 0 .25rem;
+			white-space: nowrap;
+		}
+
+		.bbox:hover {
+			background: rgba(255, 165, 0, .8);
+		}
+
+		.bbox:hover .bbox-label {
+			display: block;
+		}
+	</style>
+</head>
+
+<body>
+	<h1>Review {{ id }}</h1>
+	<div hx-get="/reviews/{{ id }}/content" hx-trigger="load"></div>
+	<script>
+		document.body.addEventListener("htmx:afterSwap", (event) => {
+			for (const image of event.detail.elt.querySelectorAll(".page-image")) {
+				const overlay = image.parentElement.querySelector(".overlay");
+				const draw = () => renderBoundingBoxes(overlay, image, overlay);
+				if (image.complete && image.naturalWidth > 0) draw();
+				else image.addEventListener("load", draw, { once: true });
+			}
+		});
+	</script>
+</body>
+
+</html>

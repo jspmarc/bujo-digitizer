@@ -1,0 +1,5 @@
+<ul>
+	{% for row in rows %}
+	<li><a href="/reviews/{{ row.id }}">{{ row.id }}: document {{ row.paperless_doc_id }}</a></li>
+	{% endfor %}
+</ul>

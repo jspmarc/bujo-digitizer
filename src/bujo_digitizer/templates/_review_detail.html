@@ -1,0 +1,15 @@
+{% for page in pages %}
+<figure class="page">
+	<img class="page-image" src="/reviews/{{ row.id }}/page/{{ page.index }}" alt="Page {{ page.index + 1 }}">
+	<div class="overlay">{{ page.bbox_html | safe }}</div>
+</figure>
+{% endfor %}
+
+<p><a href="/reviews/{{ row.id }}/document" target="_blank" rel="noopener">Open original document</a></p>
+
+<form hx-post="/reviews/{{ row.id }}" hx-target="#update-result">
+	<textarea name="parse_result" rows="20" cols="80">{{ row.parse_result or "" }}</textarea>
+	<button type="submit">Update</button>
+</form>
+
+<div id="update-result"></div>
