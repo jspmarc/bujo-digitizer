@@ -144,7 +144,7 @@ class DigitizeController:
 			)
 			logger.debug("OCR LLM response: %s", ocr_result)
 
-			bs = BeautifulSoup(ocr_result)
+			bs = BeautifulSoup(ocr_result, features="html.parser")
 			page_boxes = bs.select("div[data-bbox]")
 			ocr_results_with_bb.append(page_boxes)
 			ocr_texts.append("\n".join(self._block_text(x) for x in page_boxes))
