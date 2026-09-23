@@ -3,7 +3,7 @@ from functools import lru_cache
 from importlib import resources
 
 import httpx
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString, ResultSet, Tag
 from openai import AsyncOpenAI
 
 from bujo_digitizer.config import get_settings
@@ -16,6 +16,16 @@ from bujo_digitizer.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _block_text(div: Tag) -> str:
+	parts: list[str] = []
+	for child in div.descendants:
+		if isinstance(child, NavigableString):
+			parts.append(str(child))
+		elif getattr(child, "name", None) == "br":
+			parts.append("\n")
+	return "".join(parts)
 
 
 class PaperlessController:
@@ -65,31 +75,37 @@ class DigitizeController:
 	async def digitize(self, request: DigitizeRequest) -> DigitizeResponse:
 		client = self._client
 
-		content = [
-			{"type": "input_file", "file_url": request.file_url},
-			{"type": "input_text", "text": self.__load_ocr_prompt()},
-		]
+		ocr_results_with_bb: list[ResultSet[Tag]] = []
+		ocr_texts: list[str] = []
 
-		response = await client.responses.create(
-			model="chandra-ocr-2",
-			input=[{"role": "user", "content": content}],
-			temperature=0.5,
-			extra_body={"reasoning_budget_tokens": 3072},
-		)
-		ocr_result = "\n".join(
-			part.text for item in response.output if item.type == "reasoning" and item.content for part in item.content
-		)
-		logger.debug("OCR LLM response: %s", ocr_result)
+		for file_url in request.file_urls:
+			content = [
+				{"type": "input_image", "image_url": file_url},
+				{"type": "input_text", "text": self.__load_ocr_prompt()},
+			]
 
-		bs = BeautifulSoup(ocr_result)
-		ocr_result_with_bb_only = bs.select("div[data-bbox]")
-		ocr_result = "\n".join([x.get_text() for x in ocr_result_with_bb_only])
-		logger.debug("OCR Result cleaned: %s", ocr_result)
+			response = await client.responses.create(
+				model="chandra-ocr-2",
+				input=[{"role": "user", "content": content}],
+				temperature=0.5,
+				extra_body={"reasoning_budget_tokens": 3072},
+			)
+			ocr_result = "\n".join(
+				part.text
+				for item in response.output
+				if item.type == "reasoning" and item.content
+				for part in item.content
+			)
+			logger.debug("OCR LLM response: %s", ocr_result)
 
-		content = [
-			{"type": "input_file", "file_url": request.file_url},
-			{"type": "input_text", "text": ocr_result},
-		]
+			bs = BeautifulSoup(ocr_result)
+			page_boxes = bs.select("div[data-bbox]")
+			ocr_results_with_bb.append(page_boxes)
+			ocr_texts.append("\n".join(_block_text(x) for x in page_boxes))
+			logger.debug("OCR result cleaned: %s", ocr_texts[-1])
+
+		content = [{"type": "input_image", "image_url": file_url} for file_url in request.file_urls]
+		content.append({"type": "input_text", "text": "\n".join(ocr_texts)})
 		response = await client.responses.parse(
 			model="qwen-3.8-27b-vision",
 			input=[
@@ -98,7 +114,7 @@ class DigitizeController:
 			],
 			reasoning={"effort": "low"},
 			text_format=ParserOutput,
-			timeout=60.0,
+			timeout=180.0,
 			temperature=0.6,
 			top_p=0.95,
 			extra_body={"reasoning_budget_tokens": 256},
@@ -108,7 +124,7 @@ class DigitizeController:
 
 		return DigitizeResponse(
 			parser_output=response.output_parsed,
-			ocr_result_with_bb=ocr_result_with_bb_only,
+			ocr_results_with_bb=ocr_results_with_bb,
 		)
 
 	@staticmethod

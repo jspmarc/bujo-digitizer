@@ -58,14 +58,14 @@ class ParserOutput(RootModel[list[BujoTimeGroup]]):
 
 
 class DigitizeRequest(BaseModel):
-	file_url: str
+	file_urls: list[str]
 
 
 class DigitizeResponse(BaseModel):
 	model_config = ConfigDict(arbitrary_types_allowed=True)
 
 	parser_output: ParserOutput | None
-	ocr_result_with_bb: ResultSet[Tag]
+	ocr_results_with_bb: list[ResultSet[Tag]]
 
 
 class HealthResponse(BaseModel):

@@ -15,7 +15,10 @@ dependencies = [
     "jinja2>=3.1.6",
     "openai>=3.13.0",
     "openrouter>=1.1.103",
+    "pillow>=12.3.0",
     "pydantic>=2.12.5",
+    "pydantic-settings>=2.15.0",
+    "pypdfium2>=5.13.0",
     "python-multipart>=0.0.32",
     "uvicorn>=0.52.4",
 ]
