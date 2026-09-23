@@ -7,6 +7,23 @@
 		document {{ job.doc_title }} (Paperless ID: {{ job.paperless_doc_id }},
 		attempt {{ job.attempts }}/{{ job.max_attempts }})
 		{% if job.last_error %}<br /><small>{{ job.last_error }}</small>{% endif %}
+		{% if job.status == 'failed' %}
+		<button
+			hx-post="/jobs/{{ job.id }}/retry"
+			hx-target="#review-list"
+			type="button"
+		>
+			Retry
+		</button>
+		<button
+			hx-delete="/jobs/{{ job.id }}"
+			hx-confirm="This will drop the digitization job. The document stays untouched in Paperless."
+			hx-target="#review-list"
+			type="button"
+		>
+			Delete
+		</button>
+		{% endif %}
 	</li>
 	{% endfor %}
 </ul>

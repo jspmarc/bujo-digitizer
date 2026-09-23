@@ -9,7 +9,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
 
 from bujo_digitizer.config import Settings
-from bujo_digitizer.connectors import DigitizeJobStore, DigitizeResultStore
+from bujo_digitizer.connectors import JOB_STATUS_FAILED, DigitizeJobStore, DigitizeResultStore
 from bujo_digitizer.controllers import DigitizeController, PaperlessController
 from bujo_digitizer.exceptions import PaperlessControllerException
 from bujo_digitizer.models import HealthResponse, PaperlessWebhookPayload, ParserOutput
@@ -60,6 +60,8 @@ class Router:
 		r.add_api_route("/reviews/{id}/document", self.review_document, methods=["GET"])
 		r.add_api_route("/reviews/{id}", self.review_update, methods=["POST"])
 		r.add_api_route("/reviews/{id}", self.review_delete, methods=["DELETE"])
+		r.add_api_route("/jobs/{id}/retry", self.job_retry, methods=["POST"])
+		r.add_api_route("/jobs/{id}", self.job_delete, methods=["DELETE"])
 
 	async def index(self, request: Request):
 		return self.templates.TemplateResponse(request, "index.html")
@@ -77,10 +79,13 @@ class Router:
 		)
 		return {"job_id": job_id, "doc_id": payload.doc_id, "status": "pending"}
 
-	async def reviews_list(self, request: Request):
+	async def _render_reviews(self, request: Request):
 		rows = await asyncio.to_thread(self.store.list_all)
 		open_jobs = await asyncio.to_thread(self.jobs.list_jobs)
 		return self.templates.TemplateResponse(request, "_review_list.html", {"rows": rows, "jobs": open_jobs})
+
+	async def reviews_list(self, request: Request):
+		return await self._render_reviews(request)
 
 	async def review_page(self, request: Request, id: int):
 		row = await asyncio.to_thread(self.store.get, id)
@@ -162,3 +167,22 @@ class Router:
 	async def review_delete(self, id: int):
 		await asyncio.to_thread(self.store.delete, id)
 		return HTMLResponse(content="Deleted.")
+
+	async def job_retry(self, request: Request, id: int):
+		job = await asyncio.to_thread(self.jobs.get, id)
+		if job is None:
+			raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Job {id} not found.")
+		if job["status"] != JOB_STATUS_FAILED:
+			raise HTTPException(
+				status_code=status.HTTP_409_CONFLICT,
+				detail=f"Job {id} is '{job['status']}'; only failed jobs can be retried.",
+			)
+		await asyncio.to_thread(self.jobs.retry, id)
+		return await self._render_reviews(request)
+
+	async def job_delete(self, request: Request, id: int):
+		job = await asyncio.to_thread(self.jobs.get, id)
+		if job is None:
+			raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Job {id} not found.")
+		await asyncio.to_thread(self.jobs.delete, id)
+		return await self._render_reviews(request)
