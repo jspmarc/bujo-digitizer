@@ -1,5 +1,6 @@
 from enum import Enum
 
+from bs4 import ResultSet, Tag
 from pydantic import BaseModel, Field, RootModel
 
 
@@ -29,7 +30,14 @@ class ParserOutput(RootModel[list[BujoTimeGroup]]):
 
 
 class DigitizeRequest(BaseModel):
-	image_url: str
+	file_url: str
+
+
+class DigitizeResponse(BaseModel):
+	model_config = ConfigDict(arbitrary_types_allowed=True)
+
+	parser_output: ParserOutput | None
+	ocr_result_with_bb: ResultSet[Tag]
 
 
 class HealthResponse(BaseModel):

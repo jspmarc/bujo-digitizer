@@ -1,3 +1,4 @@
+import json
 import logging
 from base64 import b64encode
 from importlib import resources
@@ -43,5 +44,17 @@ async def digitize_html(request: Request, image: UploadFile):
 	b64 = b64encode(content).decode("ascii")
 	image_url = f"data:{mime};base64,{b64}"
 	logger.info("first 20 characters of base64-encoded URL: %s", b64[:20])
-	response = await controller.digitize(DigitizeRequest(image_url=image_url))
+	digitize_response = await controller.digitize(DigitizeRequest(file_url=image_url))
+
+	parsed = (
+		digitize_response.parser_output.model_dump_json(ensure_ascii=True, indent=4)
+		if digitize_response.parser_output is not None
+		else "null"
+	)
+
+	response = f"""<pre>
+{parsed}
+</pre>
+<script type="text/html" id="ocr-html">{digitize_response.ocr_result_with_bb}</script>"""
+
 	return HTMLResponse(content=response)

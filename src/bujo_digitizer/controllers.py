@@ -1,4 +1,3 @@
-import json
 import logging
 from functools import lru_cache
 from importlib import resources
@@ -9,6 +8,7 @@ from openai import AsyncOpenAI
 from bujo_digitizer.config import get_settings
 from bujo_digitizer.models import (
 	DigitizeRequest,
+	DigitizeResponse,
 	HealthResponse,
 	ParserOutput,
 )
@@ -37,11 +37,11 @@ class DigitizeController:
 	def __load_ocr_prompt(cls) -> str:
 		return resources.files("bujo_digitizer").joinpath("prompts", "ocr.md").read_text()
 
-	async def digitize(self, request: DigitizeRequest) -> str:
+	async def digitize(self, request: DigitizeRequest) -> DigitizeResponse:
 		client = self._client
 
 		content = [
-			{"type": "input_image", "image_url": request.image_url},
+			{"type": "input_file", "file_url": request.file_url},
 			{"type": "input_text", "text": self.__load_ocr_prompt()},
 		]
 
@@ -62,7 +62,7 @@ class DigitizeController:
 		logger.debug("OCR Result cleaned: %s", ocr_result)
 
 		content = [
-			{"type": "input_image", "image_url": request.image_url},
+			{"type": "input_file", "file_url": request.file_url},
 			{"type": "input_text", "text": ocr_result},
 		]
 		response = await client.responses.parse(
@@ -80,12 +80,16 @@ class DigitizeController:
 		)
 		logger.debug("Parser LLM raw response: %s", response.output_text)
 		logger.debug("Parser LLM response: %s", response.output_parsed)
-		parsed = response.output_parsed.model_dump_json(ensure_ascii=True, indent=4) if response.output_parsed is not None else "null"
+		parsed = (
+			response.output_parsed.model_dump_json(ensure_ascii=True, indent=4)
+			if response.output_parsed is not None
+			else "null"
+		)
 
-		return f"""<pre>
-{parsed}
-</pre>
-<script type="text/html" id="ocr-html">{ocr_result_with_bb_only}</script>"""
+		return DigitizeResponse(
+			parser_output=response.output_parsed,
+			ocr_result_with_bb=ocr_result_with_bb_only,
+		)
 
 	@staticmethod
 	async def health() -> HealthResponse:
