@@ -4,8 +4,7 @@ import logging
 from importlib import resources
 from typing import Annotated
 
-import filetype
-from fastapi import APIRouter, Form, HTTPException, Request, Response, UploadFile, status
+from fastapi import APIRouter, Form, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
@@ -15,7 +14,7 @@ from bujo_digitizer.connectors import DigitizeResultStore
 from bujo_digitizer.controllers import DigitizeController, PaperlessController
 from bujo_digitizer.exceptions import PaperlessControllerException
 from bujo_digitizer.models import DigitizeRequest, HealthResponse, PaperlessWebhookPayload, ParserOutput
-from bujo_digitizer.utils import RASTER_MIME_TYPE, to_data_url, to_pages
+from bujo_digitizer.utils import RASTER_MIME_TYPE, to_pages
 
 MAX_BYTES = 15 * 1024 * 1024  # 15 MB
 # 12 bytes should be enough to determine the mime type of an image file (up to JPEG-XL).
@@ -71,7 +70,7 @@ async def digitize_webhook(payload: PaperlessWebhookPayload):
 	)
 	bbox_elements = json.dumps([str(page) for page in result.ocr_results_with_bb])
 	row_id = await asyncio.to_thread(
-		store.save, payload.doc_id, parse_result, bbox_elements, [page.image for page in pages]
+		store.save, payload.doc_id, payload.doc_title, parse_result, bbox_elements, [page.image for page in pages]
 	)
 
 	return {
@@ -90,7 +89,12 @@ async def reviews_list(request: Request):
 
 @router.get("/reviews/{id}", include_in_schema=False)
 async def review_page(request: Request, id: int):
-	return templates.TemplateResponse(request, "review_detail.html", {"id": id})
+	row = await asyncio.to_thread(store.get, id)
+	if row is None:
+		raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Review not found.")
+	return templates.TemplateResponse(
+		request, "review_detail.html", {"id": id, "doc_title": row["doc_title"], "doc_id": row["paperless_doc_id"]}
+	)
 
 
 @router.get("/reviews/{id}/content")

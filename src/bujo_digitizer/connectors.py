@@ -7,6 +7,7 @@ _CREATE_RESULT_TABLE = """
 CREATE TABLE IF NOT EXISTS to_review_digitize_result (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	paperless_doc_id INTEGER NOT NULL,
+	doc_title TEXT NOT NULL,
 	parse_result TEXT,
 	bbox_elements TEXT NOT NULL
 )
@@ -25,6 +26,7 @@ CREATE TABLE IF NOT EXISTS to_review_digitize_page (
 class DigitizeResultRow(TypedDict):
 	id: int
 	paperless_doc_id: int
+	doc_title: str
 	parse_result: str | None
 	bbox_elements: str
 
@@ -33,6 +35,7 @@ def _to_row(row: sqlite3.Row) -> DigitizeResultRow:
 	return DigitizeResultRow(
 		id=row["id"],
 		paperless_doc_id=row["paperless_doc_id"],
+		doc_title=row["doc_title"],
 		parse_result=row["parse_result"],
 		bbox_elements=row["bbox_elements"],
 	)
@@ -56,18 +59,22 @@ class DigitizeResultStore:
 		with self._connect() as conn:
 			conn.execute(_CREATE_RESULT_TABLE)
 			conn.execute(_CREATE_PAGE_TABLE)
+			columns = {row["name"] for row in conn.execute("PRAGMA table_info(to_review_digitize_result)")}
+			if "doc_title" not in columns:
+				conn.execute("ALTER TABLE to_review_digitize_result ADD COLUMN doc_title TEXT NOT NULL DEFAULT ''")
 
 	def save(
 		self,
 		paperless_doc_id: int,
+		doc_title: str,
 		parse_result: str | None,
 		bbox_elements: str,
 		pages: Sequence[bytes],
 	) -> int:
 		with self._connect() as conn:
 			cursor = conn.execute(
-				"INSERT INTO to_review_digitize_result (paperless_doc_id, parse_result, bbox_elements) VALUES (?, ?, ?)",
-				(paperless_doc_id, parse_result, bbox_elements),
+				"INSERT INTO to_review_digitize_result (paperless_doc_id, doc_title, parse_result, bbox_elements) VALUES (?, ?, ?, ?)",
+				(paperless_doc_id, doc_title, parse_result, bbox_elements),
 			)
 			result_id = cursor.lastrowid
 			conn.executemany(

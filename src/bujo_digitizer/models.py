@@ -74,3 +74,4 @@ class HealthResponse(BaseModel):
 
 class PaperlessWebhookPayload(BaseModel):
 	doc_id: int
+	doc_title: str

@@ -4,7 +4,7 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Review {{ id }}</title>
+	<title>Review {{ doc_title }}</title>
 	<script src="https://unpkg.com/htmx.org@2"></script>
 	<script src="/static/bbox.js" defer></script>
 	<style>
@@ -31,6 +31,13 @@
 			color: #fff;
 			border: none;
 			text-decoration: none;
+			cursor: pointer;
+		}
+
+		button:hover,
+		.button:hover {
+			background: #f0f0f0;
+			color: #6b7280;
 		}
 
 		.main {
@@ -125,7 +132,8 @@
 </head>
 
 <body>
-	<h1>Review {{ id }}</h1>
+	<h1>Review <b>{{ doc_title }}</b></h1>
+	<p style="margin-top: 0;">Paperless document ID: {{ doc_id }}</p>
 	<div class="main" hx-get="/reviews/{{ id }}/content" hx-trigger="load"></div>
 	<script>
 		document.body.addEventListener("htmx:afterSwap", (event) => {

@@ -6,11 +6,22 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>To Review</title>
 	<script src="https://unpkg.com/htmx.org@2"></script>
+
+	<style>
+		body {
+			display: flex;
+			flex-direction: column;
+			justify-content: start;
+			align-items: center;
+		}
+	</style>
 </head>
 
 <body>
-	<h1>To Review</h1>
-	<div hx-get="/reviews" hx-trigger="load"></div>
+	<div>
+		<h1>To Review</h1>
+		<div hx-get="/reviews" hx-trigger="load"></div>
+	</div>
 </body>
 
 </html>
