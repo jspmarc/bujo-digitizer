@@ -1,7 +1,7 @@
 from functools import lru_cache
 from importlib import resources
 
-import httpx
+import httpx2
 from bs4 import BeautifulSoup, NavigableString, ResultSet, Tag
 from openai import AsyncOpenAI
 
@@ -22,7 +22,7 @@ class PaperlessController:
 	def __init__(self, base_url: str, token: str):
 		self._base_url: str = base_url
 		self._token: str = token
-		self._client: httpx.AsyncClient = httpx.AsyncClient(timeout=30.0)
+		self._client: httpx2.AsyncClient = httpx2.AsyncClient(timeout=30.0)
 
 	def _get_headers(self) -> dict[str, str]:
 		return {"Authorization": f"Token {self._token}"}
@@ -35,11 +35,11 @@ class PaperlessController:
 		try:
 			response = await self._client.get(doc_url, headers=self._get_headers())
 			_ = response.raise_for_status()
-		except httpx.HTTPStatusError as exc:
+		except httpx2.HTTPStatusError as exc:
 			raise PaperlessControllerException(
 				f"Paperless API returned {exc.response.status_code} for {doc_url}."
 			) from exc
-		except httpx.HTTPError as exc:
+		except httpx2.HTTPError as exc:
 			raise PaperlessControllerException("Failed to reach Paperless API") from exc
 		return response.content, response.headers.get("content-type")
 
@@ -55,11 +55,11 @@ class PaperlessController:
 				headers=self._get_headers(),
 			)
 			_ = response.raise_for_status()
-		except httpx.HTTPStatusError as exc:
+		except httpx2.HTTPStatusError as exc:
 			raise PaperlessControllerException(
 				f"Paperless API returned {exc.response.status_code} for {patch_url}."
 			) from exc
-		except httpx.HTTPError as exc:
+		except httpx2.HTTPError as exc:
 			raise PaperlessControllerException("Failed to reach Paperless API") from exc
 
 	async def add_document_tag(self, id: int, tag_id: int) -> None:
@@ -76,11 +76,11 @@ class PaperlessController:
 				headers=self._get_headers(),
 			)
 			_ = response.raise_for_status()
-		except httpx.HTTPStatusError as exc:
+		except httpx2.HTTPStatusError as exc:
 			raise PaperlessControllerException(
 				f"Paperless API returned {exc.response.status_code} for {bulk_url}."
 			) from exc
-		except httpx.HTTPError as exc:
+		except httpx2.HTTPError as exc:
 			raise PaperlessControllerException("Failed to reach Paperless API") from exc
 
 
