@@ -113,7 +113,9 @@ async def review_content(request: Request, id: int):
 		{"index": index, "bbox_html": bbox_pages[index] if index < len(bbox_pages) else ""}
 		for index in range(page_count)
 	]
-	return templates.TemplateResponse(request, "_review_detail.html", {"row": row, "pages": pages})
+	return templates.TemplateResponse(
+		request, "_review_detail.html", {"row": row, "pages": pages, "paperless_base_url": settings.paperless_base_url}
+	)
 
 
 @router.get("/reviews/{id}/page/{page_index}")
