@@ -5,18 +5,28 @@
 </figure>
 {% endfor %}
 
-<p><a href="/reviews/{{ row.id }}/document" target="_blank" rel="noopener">Open original document</a></p>
-
 <form hx-post="/reviews/{{ row.id }}" hx-target="#update-result">
-	<textarea name="parse_result" rows="20" cols="80">{{ row.parse_result or "" }}</textarea>
-	<button type="submit">Update</button>
+	<textarea name="parse_result" class="parse-result fill-parent">{{ row.parse_result or "" }}</textarea>
+
+	<div class="button-group">
+		<a
+			href="/reviews/{{ row.id }}/document"
+			target="_blank"
+			rel="noopener"
+			class="button"
+		>
+			Open original document
+		</a>
+		<button type="submit">Update</button>
+		<button
+			hx-delete="/reviews/{{ row.id }}"
+			hx-confirm="This action will delete the review data. Are you sure you want to continue?"
+			hx-target="#update-result"
+			type="button"
+		>
+			Mark as reviewed and delete
+		</button>
+	</div>
+
+	<div id="update-result"></div>
 </form>
-
-<button
-	hx-delete="/reviews/{{ row.id }}"
-	hx-confirm="This action will delete the review data. Are you sure you want to continue?"
->
-	Mark as reviewed and delete
-</button>
-
-<div id="update-result"></div>

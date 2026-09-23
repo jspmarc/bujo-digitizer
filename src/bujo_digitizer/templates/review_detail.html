@@ -8,16 +8,88 @@
 	<script src="https://unpkg.com/htmx.org@2"></script>
 	<script src="/static/bbox.js" defer></script>
 	<style>
+		html, body {
+			height: 100%;
+			margin: 0;
+			overflow: hidden;
+		}
+
+		body {
+			display: flex;
+			flex-direction: column;
+			justify-content: start;
+			align-items: center;
+		}
+
+		button,
+		.button {
+			display: inline-block;
+			vertical-align: middle;
+			font: inherit;
+			padding: .5rem .75rem;
+			background: #6b7280;
+			color: #fff;
+			border: none;
+			text-decoration: none;
+		}
+
+		.main {
+			display: flex;
+			flex-direction: row;
+			flex-grow: 1;
+			justify-content: center;
+			align-items: start;
+			gap: 1%;
+			min-height: 0;
+			max-height: 95vh;
+			max-width: 85vw;
+			margin: 0;
+			width: 100vw;
+			padding-bottom: 4rem;
+		}
+
 		.page {
 			position: relative;
 			display: inline-block;
-			max-width: 100%;
-			margin: 1rem 0;
+			margin: 0;
 		}
 
 		.page img {
 			max-width: 100%;
 			display: block;
+		}
+
+		.page, .page img, .main form {
+			max-height: 90vh;
+		}
+
+		.main form {
+			flex: 1 1 30vw;
+			gap: 0.5%;
+			min-width: 0;
+			height: 100%;
+			display: flex;
+			flex-direction: column;
+		}
+
+		.button-group {
+			display: flex;
+			flex-direction: row;
+			justify-content: center;
+			align-items: center;
+			gap: 1%;
+		}
+
+		.parse-result {
+			width: 100%;
+			box-sizing: border-box;
+		}
+
+		.fill-parent {
+			width: 100%;
+			height: 100%;
+			box-sizing: border-box;
+			resize: none;
 		}
 
 		.page .overlay {
@@ -54,14 +126,14 @@
 
 <body>
 	<h1>Review {{ id }}</h1>
-	<div hx-get="/reviews/{{ id }}/content" hx-trigger="load"></div>
+	<div class="main" hx-get="/reviews/{{ id }}/content" hx-trigger="load"></div>
 	<script>
 		document.body.addEventListener("htmx:afterSwap", (event) => {
 			for (const image of event.detail.elt.querySelectorAll(".page-image")) {
 				const overlay = image.parentElement.querySelector(".overlay");
 				const draw = () => renderBoundingBoxes(overlay, image, overlay);
 				if (image.complete && image.naturalWidth > 0) draw();
-				else image.addEventListener("load", draw, { once: true });
+				else image.addEventListener("load", draw, {once: true});
 			}
 		});
 	</script>
