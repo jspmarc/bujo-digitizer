@@ -17,6 +17,8 @@ from bujo_digitizer.models import (
 
 logger = logging.getLogger(__name__)
 
+DIGITIZED_TAG_ID = 6
+
 
 def _block_text(div: Tag) -> str:
 	parts: list[str] = []
@@ -32,16 +34,19 @@ class PaperlessController:
 	def __init__(self, base_url: str, token: str):
 		self._base_url: str = base_url
 		self._token: str = token
+		self._client: httpx.AsyncClient = httpx.AsyncClient(timeout=30.0)
 
 	def _get_headers(self) -> dict[str, str]:
 		return {"Authorization": f"Token {self._token}"}
 
+	async def aclose(self) -> None:
+		await self._client.aclose()
+
 	async def download_document(self, id: int) -> tuple[bytes, str | None]:
-		doc_url = f"{self._base_url}/documents/{id}/download"
+		doc_url = f"{self._base_url}/api/documents/{id}/download/"
 		try:
-			async with httpx.AsyncClient(timeout=30.0) as client:
-				response = await client.get(doc_url, headers=self._get_headers())
-				_ = response.raise_for_status()
+			response = await self._client.get(doc_url, headers=self._get_headers())
+			_ = response.raise_for_status()
 		except httpx.HTTPStatusError as exc:
 			raise PaperlessControllerException(
 				f"Paperless API returned {exc.response.status_code} for {doc_url}."
@@ -49,6 +54,48 @@ class PaperlessController:
 		except httpx.HTTPError as exc:
 			raise PaperlessControllerException("Failed to reach Paperless API") from exc
 		return response.content, response.headers.get("content-type")
+
+	async def update_document_content(self, id: int, content: str) -> None:
+		patch_url = f"{self._base_url}/api/documents/{id}/"
+		request_body = {
+			"content": content,
+		}
+		try:
+			response = await self._client.patch(
+				patch_url,
+				json=request_body,
+				headers=self._get_headers(),
+			)
+			_ = response.raise_for_status()
+		except httpx.HTTPStatusError as exc:
+			raise PaperlessControllerException(
+				f"Paperless API returned {exc.response.status_code} for {patch_url}."
+			) from exc
+		except httpx.HTTPError as exc:
+			raise PaperlessControllerException("Failed to reach Paperless API") from exc
+
+		await self.add_document_tag(id, DIGITIZED_TAG_ID)
+
+	async def add_document_tag(self, id: int, tag_id: int) -> None:
+		bulk_url = f"{self._base_url}/api/documents/bulk_edit/"
+		request_body = {
+			"documents": [id],
+			"method": "add_tag",
+			"parameters": {"tag": tag_id},
+		}
+		try:
+			response = await self._client.post(
+				bulk_url,
+				json=request_body,
+				headers=self._get_headers(),
+			)
+			_ = response.raise_for_status()
+		except httpx.HTTPStatusError as exc:
+			raise PaperlessControllerException(
+				f"Paperless API returned {exc.response.status_code} for {bulk_url}."
+			) from exc
+		except httpx.HTTPError as exc:
+			raise PaperlessControllerException("Failed to reach Paperless API") from exc
 
 
 class DigitizeController:
@@ -59,6 +106,9 @@ class DigitizeController:
 			base_url=openai_client_settings.openai_base_url,
 			max_retries=1,
 		)
+
+	async def aclose(self) -> None:
+		await self._client.close()
 
 	@classmethod
 	@lru_cache
