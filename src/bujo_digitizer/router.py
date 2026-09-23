@@ -45,35 +45,6 @@ async def health():
 	return await controller.health()
 
 
-@router.post("/digitize/html")
-async def digitize_html(request: Request, image: UploadFile):
-	content = await image.read()
-	if image.size is None or image.size > MAX_BYTES:
-		raise HTTPException(
-			status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-			detail=f"Image's size is {image.size} bytes. It's larger than {MAX_BYTES / (1024 * 1024)} MB.",
-		)
-
-	mime = image.content_type or filetype.guess_mime(content[:MIME_TYPE_BYTES]) or "application/octet-stream"
-	image_url = to_data_url(content, mime)
-	logger.info("Digitizing uploaded image (%s, %s bytes)", mime, len(content))
-	digitize_response = await controller.digitize(DigitizeRequest(file_urls=[image_url]))
-
-	parsed = (
-		digitize_response.parser_output.model_dump_json(ensure_ascii=False, indent=4)
-		if digitize_response.parser_output is not None
-		else "null"
-	)
-	ocr_html = str(digitize_response.ocr_results_with_bb[0]) if digitize_response.ocr_results_with_bb else ""
-
-	response = f"""<pre>
-{parsed}
-</pre>
-<script type="text/html" id="ocr-html">{ocr_html}</script>"""
-
-	return HTMLResponse(content=response)
-
-
 @router.post("/digitize/webhook")
 async def digitize_webhook(payload: PaperlessWebhookPayload):
 	logger.info(f"Payload is {payload}")
