@@ -240,6 +240,14 @@ class DigitizeJobStore(SqliteStore):
 			)
 			return int(cursor.rowcount)
 
+	def retry_failed(self) -> int:
+		with self._connect() as conn:
+			cursor = conn.execute(
+				"UPDATE digitize_job SET status = ?, last_error = NULL, updated_at = datetime('now') WHERE status = ?",
+				(JOB_STATUS_PENDING, JOB_STATUS_FAILED),
+			)
+			return int(cursor.rowcount)
+
 	def get(self, id: int) -> DigitizeJobRow | None:
 		with self._connect() as conn:
 			row = conn.execute("SELECT * FROM digitize_job WHERE id = ?", (id,)).fetchone()

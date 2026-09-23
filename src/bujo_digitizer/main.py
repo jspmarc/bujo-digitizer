@@ -30,6 +30,7 @@ def create_app() -> FastAPI:
 		paperless_controller,
 		poll_interval=settings.worker_poll_seconds,
 		concurrency=settings.worker_concurrency,
+		retry_interval=settings.worker_retry_interval_seconds,
 	)
 	templates = Jinja2Templates(directory=str(resources.files("bujo_digitizer").joinpath("templates")))
 	routes = Router(

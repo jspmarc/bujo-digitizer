@@ -16,6 +16,7 @@ class Settings(BaseSettings):
 	sqlite_path: str = Field(default="./bujo_digitizer.sqlite3", alias="SQLITE_PATH")
 	worker_poll_seconds: float = Field(default=2.0, alias="WORKER_POLL_SECONDS")
 	worker_concurrency: int = Field(default=1, alias="WORKER_CONCURRENCY")
+	worker_retry_interval_seconds: float = Field(default=3600, alias="WORKER_RETRY_INTERVAL_SECONDS")
 	job_max_attempts: int = Field(default=3, alias="JOB_MAX_ATTEMPTS")
 
 

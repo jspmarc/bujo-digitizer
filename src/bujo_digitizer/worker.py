@@ -22,14 +22,17 @@ class DigitizeWorker:
 		*,
 		poll_interval: float = 2.0,
 		concurrency: int = 1,
+		retry_interval: float = 3600.0,
 	) -> None:
 		self._jobs: DigitizeJobStore = jobs
 		self._store: DigitizeResultStore = store
 		self._controller: DigitizeController = controller
 		self._paperless_controller: PaperlessController = paperless_controller
 		self._poll_interval: float = poll_interval
+		self._retry_interval: float = retry_interval
 		self._semaphore: asyncio.Semaphore = asyncio.Semaphore(concurrency)
 		self._loop_task: asyncio.Task[None] | None = None
+		self._retry_task: asyncio.Task[None] | None = None
 		self._tasks: set[asyncio.Task[None]] = set()
 
 	async def start(self) -> None:
@@ -37,12 +40,18 @@ class DigitizeWorker:
 		if reclaimed:
 			logger.info("Reclaimed %d interrupted digitize job(s)", reclaimed)
 		self._loop_task = asyncio.create_task(self._run(), name="digitize-worker")
+		self._retry_task = asyncio.create_task(self._retry_failed(), name="digitize-failed-retry")
 
 	async def aclose(self) -> None:
 		if self._loop_task is not None:
 			_ = self._loop_task.cancel()
-			_ = await asyncio.gather(self._loop_task, return_exceptions=True)
-			self._loop_task = None
+		if self._retry_task is not None:
+			_ = self._retry_task.cancel()
+		scheduled = [task for task in (self._loop_task, self._retry_task) if task is not None]
+		if scheduled:
+			_ = await asyncio.gather(*scheduled, return_exceptions=True)
+		self._loop_task = None
+		self._retry_task = None
 		# In-flight jobs are left marked running; start() requeues them on the next boot.
 		for task in list(self._tasks):
 			_ = task.cancel()
@@ -68,6 +77,14 @@ class DigitizeWorker:
 		error = task.exception()
 		if error is not None:
 			logger.error("Digitize job task crashed: %s", error, exc_info=error)
+
+	async def _retry_failed(self) -> None:
+		"""Periodically give failed jobs another chance by requeuing them."""
+		while True:
+			await asyncio.sleep(self._retry_interval)
+			retried = await asyncio.to_thread(self._jobs.retry_failed)
+			if retried:
+				logger.info("Requeued %d failed digitize job(s) for another attempt", retried)
 
 	async def _process(self, job: DigitizeJobRow) -> None:
 		doc_id = job["paperless_doc_id"]
