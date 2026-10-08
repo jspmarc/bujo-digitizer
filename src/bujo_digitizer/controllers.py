@@ -153,7 +153,7 @@ class DigitizeController:
 		content = [{"type": "input_image", "image_url": file_url} for file_url in request.file_urls]
 		content.append({"type": "input_text", "text": "\n".join(ocr_texts)})
 		response = await client.responses.parse(
-			model="qwen-3.8-27b-vision",
+			model="qwen-3.8-27b",
 			input=[
 				{"role": "system", "content": self.__load_parser_prompt()},
 				{"role": "user", "content": content},
