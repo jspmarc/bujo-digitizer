@@ -19,10 +19,16 @@ dependencies = [
 	"pypdfium2>=5.13.0",
 	"python-multipart>=0.0.32",
 	"uvicorn>=0.52.4",
+	"yoyo-migrations>=9.0.0",
 ]
 
 [project.scripts]
 bujo-digitizer = "bujo_digitizer:main"
+
+[dependency-groups]
+dev = [
+	"pytest>=9.1.1",
+]
 
 [build-system]
 requires = ["uv_build>=0.13.5,<0.14.0"]
@@ -30,6 +36,7 @@ build-backend = "uv_build"
 
 [tool.uv.build-backend]
 source-include = [
+	"src/bujo_digitizer/migrations/**",
 	"src/bujo_digitizer/prompts/**",
 	"src/bujo_digitizer/templates/**",
 	"src/bujo_digitizer/static/**"
