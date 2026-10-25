@@ -1,4 +1,4 @@
-.PHONY: test deps build
+.PHONY: deps install-deps dev dev-open migration-new migration-ls migrate test lint fmt build build-docker docker-build docker-run
 
 deps:
 	uv sync
@@ -15,13 +15,19 @@ migration-new:
 	uv run yoyo new --sql
 
 migration-ls:
-	uv run yoyo list
+	uv run yoyo list --database "sqlite:///$${SQLITE_PATH:-./bujo_digitizer.sqlite3}"
 
 migrate:
-	uv run yoyo apply --batch
+	uv run yoyo apply --batch --database "sqlite:///$${SQLITE_PATH:-./bujo_digitizer.sqlite3}"
 
 test:
 	uv run pytest
+
+lint:
+	uv run ruff check .
+
+fmt:
+	uv run ruff format .
 
 build:
 	uv build
