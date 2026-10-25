@@ -11,6 +11,7 @@ from fastapi.templating import Jinja2Templates
 from bujo_digitizer.config import get_settings
 from bujo_digitizer.connectors import DigitizeJobStore, DigitizeResultStore
 from bujo_digitizer.controllers import DigitizeController, ObsidianController, PaperlessController
+from bujo_digitizer.database import migrate
 from bujo_digitizer.logger import get_logger
 from bujo_digitizer.router import Router
 from bujo_digitizer.worker import DigitizeWorker
@@ -21,10 +22,9 @@ logger = get_logger(__name__)
 def create_app() -> FastAPI:
 	settings = get_settings()
 
+	migrate(settings.sqlite_path)
 	store = DigitizeResultStore(settings.sqlite_path)
-	store.initialize()
 	jobs = DigitizeJobStore(settings.sqlite_path)
-	jobs.initialize()
 
 	controller = DigitizeController()
 	paperless_controller = PaperlessController(settings.paperless_base_url, settings.paperless_token)
