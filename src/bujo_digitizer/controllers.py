@@ -1,7 +1,8 @@
 import os
 import re
 import tempfile
-from datetime import date
+import threading
+from datetime import date, datetime
 from functools import lru_cache
 from importlib import resources
 from pathlib import Path
@@ -33,6 +34,18 @@ class PaperlessController:
 		self._base_url: str = base_url
 		self._token: str = token
 		self._client: httpx2.AsyncClient = httpx2.AsyncClient(timeout=30.0)
+
+	@staticmethod
+	def _date_only(value: object) -> str:
+		"""Normalize a Paperless date/datetime value to an ISO `YYYY-MM-DD` string (empty when absent)."""
+		if not value:
+			return ""
+		text = str(value).strip()
+		try:
+			return datetime.fromisoformat(text).date().isoformat()
+		except ValueError:
+			# not a datetime: assume it is already a date (or a dateless prefix we can slice)
+			return text[:10]
 
 	def _get_headers(self) -> dict[str, str]:
 		return {"Authorization": f"Token {self._token}"}
@@ -105,7 +118,12 @@ class PaperlessController:
 			) from exc
 		except httpx2.HTTPError as exc:
 			raise PaperlessControllerException("Failed to reach Paperless API") from exc
-		return str(response.json().get("created") or "")
+
+		try:
+			created = response.json().get("created")
+		except ValueError as exc:
+			raise PaperlessControllerException(f"Paperless API returned invalid JSON for {doc_url}.") from exc
+		return self._date_only(created or "")
 
 
 class DigitizeController:
@@ -218,11 +236,18 @@ class ObsidianController:
 		self._enabled: bool = enabled
 		self._obsidian_path: str | None = obsidian_path
 		self._section_name: str = section_name
+		# modify_obsidian runs in a worker thread; serialize read-modify-write per note
+		self._note_locks: dict[Path, threading.Lock] = {}
+		self._note_locks_guard: threading.Lock = threading.Lock()
 
-		if self._enabled and self._obsidian_path is None:
+		if self._enabled and not self._obsidian_path:
 			raise ValueError("Obsidian Bujo is enabled, but the path is not supplied.")
 		elif not self._enabled:
 			logger.info("Obsidian Bujo is disabled.")
+
+	def _lock_for(self, note_path: Path) -> threading.Lock:
+		with self._note_locks_guard:
+			return self._note_locks.setdefault(note_path, threading.Lock())
 
 	def _note_path(self, created: date) -> Path:
 		week_created = created.isocalendar().week
@@ -319,10 +344,12 @@ class ObsidianController:
 				continue
 
 			indent = raw[: len(raw) - len(raw.lstrip())]
-			depth = len(indent.expandtabs(4)) // 4
+			# 2-space, 4-space and tab indentation all count as one nesting level; `_attach` only
+			# compares relative depths, so the generated tab indent (4 cols) still nests correctly
+			depth = len(indent.expandtabs(4)) // 2
 
 			entry_dict: ObsidianController._EntryDict
-			body = stripped[2:] if stripped.startswith("- ") else None
+			body = stripped[2:] if stripped[:2] in ("- ", "* ", "+ ") else None
 			if body is not None and body[:1] in "([":
 				marker = body[:3]
 				# Obsidian also writes completed checkboxes as "[X]"
@@ -346,51 +373,63 @@ class ObsidianController:
 		flush()
 		return ParserOutput(root=groups)
 
-	def modify_obsidian(self, doc_created: str, content: ParserOutput) -> None:
-		if not self._enabled:
-			return
-
-		if self._obsidian_path is None:
-			raise ObsidianControllerException("Obsidian Bujo is enabled, but the path is not supplied.")
-
+	@staticmethod
+	def _parse_created(doc_created: str) -> date:
+		"""Accept a plain ISO date or a full ISO datetime (Paperless reports `created` as a datetime)."""
 		try:
-			created = date.fromisoformat(doc_created)
+			return date.fromisoformat(doc_created)
+		except ValueError:
+			pass
+		try:
+			return datetime.fromisoformat(doc_created).date()
 		except ValueError:
 			raise ObsidianControllerException(
 				f"Invalid created date {doc_created!r}; cannot locate the Obsidian note."
 			) from None
 
+	def modify_obsidian(self, doc_created: str, content: ParserOutput) -> None:
+		if not self._enabled:
+			return
+
+		if not self._obsidian_path:
+			raise ObsidianControllerException("Obsidian Bujo is enabled, but the path is not supplied.")
+
+		created = self._parse_created(doc_created)
 		note_path = self._note_path(created)
-		if not note_path.exists():
-			raise ObsidianControllerException(f"Obsidian note {note_path} does not exist; create it and re-approve.")
 
-		try:
-			with note_path.open("r", encoding="utf-8") as f:
-				md_content = f.read()
-		except OSError as exc:
-			raise ObsidianControllerException(f"Failed to read Obsidian note {note_path}: {exc}") from exc
-		lines = md_content.splitlines()
+		with self._lock_for(note_path):
+			if not note_path.exists():
+				raise ObsidianControllerException(
+					f"Obsidian note {note_path} does not exist; create it and re-approve."
+				)
 
-		heading_idx, section_end = self._locate_section(lines)
-		existing = self._parse_section(lines[heading_idx + 1 : section_end])
-		merged = self._merge_section(existing, content)
+			try:
+				with note_path.open("r", encoding="utf-8") as f:
+					md_content = f.read()
+			except OSError as exc:
+				raise ObsidianControllerException(f"Failed to read Obsidian note {note_path}: {exc}") from exc
+			lines = md_content.splitlines()
 
-		new_lines = lines[: heading_idx + 1]
-		merged_md = merged.to_markdown()
-		has_section_content = bool(merged_md)
-		has_content_after = section_end < len(lines)
-		if has_section_content:
-			new_lines += ["", *merged_md.splitlines()]
-		if has_section_content and has_content_after:
-			# insert a blank line between the section and the following content so the
-			# next heading (if any) does not sit directly under the last bullet
-			new_lines.append("")
-		new_lines += lines[section_end:]
+			heading_idx, section_end = self._locate_section(lines)
+			existing = self._parse_section(lines[heading_idx + 1 : section_end])
+			merged = self._merge_section(existing, content)
 
-		try:
-			self._atomic_write(note_path, "\n".join(new_lines) + "\n")
-		except OSError as exc:
-			raise ObsidianControllerException(f"Failed to write Obsidian note {note_path}: {exc}") from exc
+			new_lines = lines[: heading_idx + 1]
+			merged_md = merged.to_markdown()
+			has_section_content = bool(merged_md)
+			has_content_after = section_end < len(lines)
+			if has_section_content:
+				new_lines += ["", *merged_md.splitlines()]
+			if has_section_content and has_content_after:
+				# insert a blank line between the section and the following content so the
+				# next heading (if any) does not sit directly under the last bullet
+				new_lines.append("")
+			new_lines += lines[section_end:]
+
+			try:
+				self._atomic_write(note_path, "\n".join(new_lines) + "\n")
+			except OSError as exc:
+				raise ObsidianControllerException(f"Failed to write Obsidian note {note_path}: {exc}") from exc
 
 	@staticmethod
 	def _atomic_write(note_path: Path, content: str) -> None:
@@ -422,4 +461,4 @@ class ObsidianController:
 			combined.setdefault(time_group.time, []).extend(time_group.bujos)
 		for time, bujos in combined.items():
 			combined[time] = list(dict.fromkeys(bujos))
-		return ParserOutput(root=[BujoTimeGroup(time=time, bujos=bujos) for time, bujos in combined.items()])
+		return ParserOutput(root=[BujoTimeGroup(time=time, bujos=bujos) for time, bujos in sorted(combined.items())])
