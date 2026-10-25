@@ -4,7 +4,7 @@ from contextlib import closing
 from bujo_digitizer.connectors import DigitizeJobStore, DigitizeResultStore
 from bujo_digitizer.database import MIGRATIONS_DIR, migrate
 
-_MIGRATION_IDS = {path.stem for path in MIGRATIONS_DIR.glob("*.sql")}
+_MIGRATION_IDS = {path.stem for path in MIGRATIONS_DIR.iterdir() if path.suffix in {".sql", ".py"}}
 
 
 def _applied_ids(path: str) -> set[str]:
@@ -82,6 +82,73 @@ def test_existing_database_is_adopted_without_data_loss(tmp_path) -> None:
 	assert row is not None
 	assert row["doc_title"] == "Existing"
 	assert row["doc_created"] == "2026-01-05"
+
+
+def test_initialize_upgrades_a_legacy_result_schema(tmp_path) -> None:
+	path = str(tmp_path / "legacy-results.sqlite3")
+	_execute(
+		path,
+		"""
+		CREATE TABLE to_review_digitize_result (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			paperless_doc_id INTEGER NOT NULL,
+			parse_result TEXT,
+			bbox_elements TEXT NOT NULL
+		);
+		CREATE TABLE to_review_digitize_page (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			result_id INTEGER NOT NULL,
+			page_index INTEGER NOT NULL,
+			image BLOB NOT NULL
+		);
+		INSERT INTO to_review_digitize_result (paperless_doc_id, parse_result, bbox_elements)
+			VALUES (7, '[]', '<div></div>');
+		""",
+	)
+
+	store = DigitizeResultStore(path)
+	store.initialize()
+
+	assert {"doc_title", "doc_created"} <= _columns(path, "to_review_digitize_result")
+	row = store.get(1)
+	assert row is not None
+	assert row["paperless_doc_id"] == 7
+	assert row["doc_title"] == ""
+	assert row["doc_created"] == ""
+	assert row["bbox_elements"] == "<div></div>"
+
+
+def test_initialize_upgrades_a_legacy_job_schema(tmp_path) -> None:
+	path = str(tmp_path / "legacy-jobs.sqlite3")
+	_execute(
+		path,
+		"""
+		CREATE TABLE digitize_job (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			paperless_doc_id INTEGER NOT NULL,
+			doc_title TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'pending',
+			attempts INTEGER NOT NULL DEFAULT 0,
+			max_attempts INTEGER NOT NULL DEFAULT 3,
+			last_error TEXT,
+			created_at TEXT NOT NULL DEFAULT (datetime('now')),
+			updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+		);
+		INSERT INTO digitize_job (paperless_doc_id, doc_title, status)
+			VALUES (8, 'Legacy job', 'failed');
+		""",
+	)
+
+	jobs = DigitizeJobStore(path)
+	jobs.initialize()
+
+	assert "doc_created" in _columns(path, "digitize_job")
+	job = jobs.get(1)
+	assert job is not None
+	assert job["paperless_doc_id"] == 8
+	assert job["doc_title"] == "Legacy job"
+	assert job["doc_created"] == ""
+	assert job["status"] == "failed"
 
 
 def test_job_store_uses_the_same_migration_set(tmp_path) -> None:
