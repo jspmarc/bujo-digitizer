@@ -29,13 +29,17 @@ def create_app() -> FastAPI:
 	controller = DigitizeController()
 	paperless_controller = PaperlessController(settings.paperless_base_url, settings.paperless_token)
 	obsidian_controller = ObsidianController(
-		settings.obsidian_bujo_enabled, settings.obsidian_bujo_path, settings.obsidian_bujo_section
+		settings.obsidian_bujo_enabled,
+		settings.obsidian_vault_path,
+		settings.obsidian_bujo_section,
+		settings.obsidian_note_template,
 	)
 	worker = DigitizeWorker(
 		jobs,
 		store,
 		controller,
 		paperless_controller,
+		obsidian_enabled=settings.obsidian_bujo_enabled,
 		poll_interval=settings.worker_poll_seconds,
 		concurrency=settings.worker_concurrency,
 		retry_interval=settings.worker_retry_interval_seconds,

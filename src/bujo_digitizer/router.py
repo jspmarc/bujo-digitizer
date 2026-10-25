@@ -163,11 +163,12 @@ class Router:
 		try:
 			await self._paperless_controller.update_document_content(row["paperless_doc_id"], content)
 			await self._paperless_controller.add_document_tag(row["paperless_doc_id"], DIGITIZED_TAG_ID)
-			doc_created = row["doc_created"]
-			if not doc_created:
-				# legacy rows without `doc_created`: ask Paperless so the Obsidian update is never skipped
-				doc_created = await self._paperless_controller.get_created(row["paperless_doc_id"])
-			await asyncio.to_thread(self._obsidian_controller.modify_obsidian, doc_created, content_raw)
+			if self._settings.obsidian_bujo_enabled:
+				doc_created = row["doc_created"]
+				if not doc_created:
+					# legacy rows without `doc_created`: ask Paperless so the Obsidian update is never skipped
+					doc_created = await self._paperless_controller.get_created(row["paperless_doc_id"])
+				await asyncio.to_thread(self._obsidian_controller.modify_obsidian, doc_created, content_raw)
 		except PaperlessControllerException as exc:
 			raise HTTPException(
 				status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -1,6 +1,5 @@
 from datetime import date
 from enum import Enum
-from typing import override
 
 from bs4 import ResultSet, Tag
 from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator
@@ -29,11 +28,6 @@ class BujoEntry(BaseModel):
 	def _none_if_empty(cls, value: list[BujoEntry] | None) -> list[BujoEntry] | None:
 		# if value is empty, then return None
 		return value or None
-
-	@override
-	def __hash__(self) -> int:
-		# frozen's auto __hash__ can't handle the list field; JSON captures all fields recursively
-		return hash(self.model_dump_json())
 
 
 class BujoTimeGroup(BaseModel):

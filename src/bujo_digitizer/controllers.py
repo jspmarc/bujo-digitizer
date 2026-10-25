@@ -232,10 +232,17 @@ class ObsidianController:
 		note: str
 		sub_entries: list[ObsidianController._EntryDict]
 
-	def __init__(self, enabled: bool = True, obsidian_path: str | None = None, section_name: str = "Bujo"):
+	def __init__(
+		self,
+		enabled: bool = True,
+		obsidian_path: str | None = None,
+		section_name: str = "Bujo",
+		note_template: str = "{year}/W{week:02d}/{date}.md",
+	):
 		self._enabled: bool = enabled
 		self._obsidian_path: str | None = obsidian_path
 		self._section_name: str = section_name
+		self._note_template: str = note_template
 		# modify_obsidian runs in a worker thread; serialize read-modify-write per note
 		self._note_locks: dict[Path, threading.Lock] = {}
 		self._note_locks_guard: threading.Lock = threading.Lock()
@@ -250,9 +257,9 @@ class ObsidianController:
 			return self._note_locks.setdefault(note_path, threading.Lock())
 
 	def _note_path(self, created: date) -> Path:
-		week_created = created.isocalendar().week
-		year_created = created.isocalendar().year
-		return Path(self._obsidian_path or "") / str(year_created) / f"W{week_created:02d}" / f"{created:%Y-%m-%d}.md"
+		iso = created.isocalendar()
+		rel = self._note_template.format(year=iso.year, week=iso.week, date=created)
+		return Path(self._obsidian_path or "") / rel
 
 	def _locate_section(self, lines: list[str]) -> tuple[int, int]:
 		"""Return (heading_idx, section_end) line indices for the configured section."""
@@ -448,6 +455,8 @@ class ObsidianController:
 				tmp.write(content)
 				tmp.flush()
 				os.fsync(tmp.fileno())
+			# NamedTemporaryFile creates the file 0600; preserve the note's original mode
+			os.chmod(tmp_name, note_path.stat().st_mode)
 			os.replace(tmp_name, note_path)
 		except OSError:
 			if tmp_name:
@@ -460,5 +469,14 @@ class ObsidianController:
 		for time_group in [*existing.root, *new.root]:
 			combined.setdefault(time_group.time, []).extend(time_group.bujos)
 		for time, bujos in combined.items():
-			combined[time] = list(dict.fromkeys(bujos))
+			# BujoEntry is frozen but hashless (identity-based), so dict.fromkeys won't dedupe;
+			# dedupe on the serialized JSON form which captures all fields recursively
+			unique: list[BujoEntry] = []
+			seen: set[str] = set()
+			for entry in bujos:
+				key = entry.model_dump_json()
+				if key not in seen:
+					seen.add(key)
+					unique.append(entry)
+			combined[time] = unique
 		return ParserOutput(root=[BujoTimeGroup(time=time, bujos=bujos) for time, bujos in sorted(combined.items())])
