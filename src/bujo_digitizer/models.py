@@ -1,6 +1,6 @@
-from typing import override
 from datetime import date
 from enum import Enum
+from typing import override
 
 from bs4 import ResultSet, Tag
 from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator
@@ -72,9 +72,6 @@ class ParserOutput(RootModel[list[BujoTimeGroup]]):
 			groups.append("\n".join(lines))
 		return "\n\n".join(groups)
 
-	def to_dict(self) -> dict[str, list[BujoEntry]]:
-		return {time_group.time: time_group.bujos for time_group in self.root}
-
 
 class DigitizeRequest(BaseModel):
 	file_urls: list[str]
@@ -94,4 +91,13 @@ class HealthResponse(BaseModel):
 class PaperlessWebhookPayload(BaseModel):
 	doc_id: int
 	doc_title: str
-	created: date
+	# optional so webhook templates without it keep working; Obsidian updates are skipped when absent
+	created: date | None = None
+
+	@field_validator("created", mode="before")
+	@classmethod
+	def _date_only(cls, value: object) -> object:
+		# Paperless may format `created` as a full ISO datetime; only the date part is needed
+		if isinstance(value, str) and len(value) > 10:
+			return value[:10]
+		return value

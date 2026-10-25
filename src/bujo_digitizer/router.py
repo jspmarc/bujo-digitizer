@@ -81,7 +81,7 @@ class Router:
 			self._jobs.enqueue,
 			payload.doc_id,
 			payload.doc_title,
-			payload.created.isoformat(),
+			payload.created.isoformat() if payload.created is not None else "",
 			self._settings.job_max_attempts,
 		)
 		return {"job_id": job_id, "doc_id": payload.doc_id, "status": "pending"}
@@ -152,9 +152,7 @@ class Router:
 			raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Review not found.")
 
 		try:
-			content_raw = (
-				ParserOutput.model_validate_json(parse_result) if parse_result else ParserOutput.model_validate("[]")
-			)
+			content_raw = ParserOutput.model_validate_json(parse_result or "[]")
 			content = content_raw.to_markdown()
 		except ValidationError as exc:
 			raise HTTPException(
@@ -165,14 +163,22 @@ class Router:
 		try:
 			await self._paperless_controller.update_document_content(row["paperless_doc_id"], content)
 			await self._paperless_controller.add_document_tag(row["paperless_doc_id"], DIGITIZED_TAG_ID)
-			try:
-				await asyncio.to_thread(self._obsidian_controller.modify_obsidian, row["doc_created"], content_raw)
-			except OSError:
-				logger.exception("Failed to update Obsidian for doc %s", row["paperless_doc_id"])
-		except* PaperlessControllerException as exc:
+			doc_created = row["doc_created"]
+			if not doc_created:
+				# legacy rows without `doc_created`: ask Paperless so the Obsidian update is never skipped
+				doc_created = await self._paperless_controller.get_created(row["paperless_doc_id"])
+			await asyncio.to_thread(self._obsidian_controller.modify_obsidian, doc_created, content_raw)
+		except PaperlessControllerException as exc:
 			raise HTTPException(
 				status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-				detail=str(exc.exceptions[0]),
+				detail=str(exc),
+			)
+		except (OSError, ValueError) as exc:
+			# Obsidian is required when enabled: surface the failure so the review can be re-approved
+			logger.exception("Failed to update Obsidian for doc %s", row["paperless_doc_id"])
+			raise HTTPException(
+				status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+				detail=f"Failed to update Obsidian: {exc}",
 			)
 
 		return HTMLResponse(content="Updated.")

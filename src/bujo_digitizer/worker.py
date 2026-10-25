@@ -98,6 +98,11 @@ class DigitizeWorker:
 					f"Document's size is {len(content)} bytes. It's larger than {MAX_BYTES / (1024 * 1024)} MB."
 				)
 
+			doc_created = job["doc_created"]
+			if not doc_created:
+				# the webhook may omit `created`; ask Paperless so the Obsidian update is never skipped
+				doc_created = await self._paperless_controller.get_created(doc_id)
+
 			pages = await asyncio.to_thread(to_pages, content)
 			result = await self._controller.digitize(DigitizeRequest(file_urls=[page.data_url for page in pages]))
 
@@ -111,7 +116,7 @@ class DigitizeWorker:
 				self._store.save,
 				doc_id,
 				job["doc_title"],
-				job["doc_created"],
+				doc_created,
 				parse_result,
 				bbox_elements,
 				[page.image for page in pages],
