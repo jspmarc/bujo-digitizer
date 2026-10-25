@@ -1,0 +1,119 @@
+# Bujo Digitizer
+
+A small FastAPI service that turns scanned bullet-journal pages in
+[Paperless-ngx](https://github.com/paperless-ngx/paperless-ngx) into structured
+Markdown.
+
+Paperless sends a webhook when a document is added. The service downloads the
+PDF, rasterizes each page, runs OCR and a parsing prompt through an
+OpenAI-compatible API, and stores the result for review in a small web UI. When
+a review is approved, the generated Markdown is written back to Paperless and,
+optionally, merged into the matching daily note in an Obsidian vault.
+
+## How it works
+
+1. `POST /digitize/webhook` queues a Paperless document.
+2. A background worker downloads the PDF, renders pages to images, and calls the
+   OCR and parser models.
+3. Results wait under `/reviews` for a human to inspect and edit.
+4. Approving a review updates the Paperless document content and tags it. If
+   Obsidian is enabled, the entries are merged into the configured `Bujo`
+   section of that day's note.
+
+## Dependencies
+
+- Python 3.14+
+- [uv](https://docs.astral.sh/uv/) for dependency management
+- Runtime libraries (declared in `pyproject.toml`): FastAPI, Uvicorn, httpx2,
+  Jinja2, OpenAI SDK, Pydantic / pydantic-settings, BeautifulSoup, Pillow,
+  pypdfium2, python-multipart, and yoyo-migrations
+- An OpenAI-compatible chat/responses endpoint for the OCR and parser models
+- A reachable Paperless-ngx instance and API token
+- Optional: an Obsidian vault directory mounted into the container
+
+## Setup
+
+```sh
+git clone <repository-url>
+cd bujo-digitizer
+
+# Install runtime and development dependencies
+uv sync
+
+# Create the environment file and fill in the values
+cp .env.example .env
+$EDITOR .env
+```
+
+Required `.env` values:
+
+| Variable | Purpose |
+| --- | --- |
+| `OPENAI_BASE_URL` | Base URL of the OpenAI-compatible API |
+| `OPENAI_API_KEY` | API key for that endpoint |
+| `PAPERLESS_BASE_URL` | Paperless-ngx base URL |
+| `PAPERLESS_TOKEN` | Paperless API token |
+
+Useful optional values are documented in `.env.example` (`SQLITE_PATH`, worker
+concurrency/polling, `OBSIDIAN_BUJO_ENABLED`, `OBSIDIAN_VAULT_PATH`, and the
+note template).
+
+## Database migrations
+
+Schema changes are SQL files under `src/bujo_digitizer/migrations/`, managed by
+[yoyo-migrations](https://pypi.org/project/yoyo-migrations/). `yoyo.ini` points
+at that folder and the default SQLite database.
+
+Migrations are applied automatically on startup, but the CLI can be used
+directly during development:
+
+```sh
+# Create a new timestamped SQL migration
+uv run yoyo new --sql -m "add my column"
+
+# Apply pending migrations
+uv run yoyo apply --batch
+
+# Show applied and pending migrations
+uv run yoyo list
+```
+
+An existing database is adopted by the idempotent initial migration, so no
+manual baseline is needed. If `SQLITE_PATH` is customized, pass the matching
+`--database` URI to yoyo (or update `yoyo.ini`).
+
+## Run
+
+```sh
+uv run bujo-digitizer
+```
+
+The service listens on `http://0.0.0.0:8000`. Open `/` for the review list or
+`/docs` for the generated API documentation.
+
+Point a Paperless webhook at `POST http://<host>:8000/digitize/webhook` with a
+JSON body containing `doc_id`, `doc_title`, and optionally `created`.
+
+## Test
+
+```sh
+uv run pytest
+```
+
+The tests use temporary SQLite databases and fake OpenAI/Paperless clients, so
+they do not need network access or real credentials.
+
+## Build
+
+Build the Python package:
+
+```sh
+uv build
+```
+
+Build and run the container:
+
+```sh
+docker build -t bujo-digitizer .
+docker run --rm -p 8000:8000 --env-file .env bujo-digitizer
+```
