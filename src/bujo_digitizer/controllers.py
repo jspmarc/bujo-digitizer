@@ -216,7 +216,6 @@ class ObsidianController:
 		"""Return (heading_idx, section_end) line indices for the configured section."""
 
 		heading_idx: int = -1
-		heading_level: int = 0
 		in_fence = False
 		for i, line in enumerate(lines):
 			if ObsidianController._FENCE_RE.match(line):
@@ -228,7 +227,6 @@ class ObsidianController:
 			matched = ObsidianController._HEADING_RE.match(line)
 			if matched and matched.group(2).strip().casefold() == self._section_name.casefold():
 				heading_idx = i
-				heading_level = len(matched.group(1))
 				break
 
 		if heading_idx < 0:
@@ -244,7 +242,9 @@ class ObsidianController:
 				continue
 
 			matched = ObsidianController._HEADING_RE.match(lines[i])
-			if matched and len(matched.group(1)) <= heading_level:
+			# the whole surgical edit should only edit the content under one header and new
+			# headers should be treated as the section_end
+			if matched:
 				section_end = i
 				break
 
@@ -350,9 +350,13 @@ class ObsidianController:
 
 		new_lines = lines[: heading_idx + 1]
 		merged_md = merged.to_markdown()
-		if merged_md:
+		has_section_content = bool(merged_md)
+		has_content_after = section_end < len(lines)
+		if has_section_content:
 			new_lines += ["", *merged_md.splitlines()]
-		if section_end < len(lines) and merged_md:
+		if has_section_content and has_content_after:
+			# insert a blank line between the section and the following content so the
+			# next heading (if any) does not sit directly under the last bullet
 			new_lines.append("")
 		new_lines += lines[section_end:]
 
