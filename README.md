@@ -28,15 +28,15 @@ in an Obsidian vault.
 
 ### Review list UI
 
-<img src="./docs/imgs/review-list-ui.png" />
+<img src="./docs/imgs/review-list-ui.png" alt="Screenshot of the UI for the review list page." />
 
-### Review list UI
+### Review UI
 
-<img src="./docs/imgs/review-ui.png" />
+<img src="./docs/imgs/review-ui.png" alt="Screenshot of the UI for the review page." />
 
 ### Updating the bujo
 
-TODO
+<video src="./docs/vids/bujo-update.mp4" alt="A video displaying the project in action." />
 
 ## Dependencies
 
