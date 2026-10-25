@@ -4,11 +4,12 @@ A small FastAPI service that turns scanned bullet-journal pages in
 [Paperless-ngx](https://github.com/paperless-ngx/paperless-ngx) into structured
 Markdown.
 
-Paperless sends a webhook when a document is added. The service downloads the
-PDF, rasterizes each page, runs OCR and a parsing prompt through an
-OpenAI-compatible API, and stores the result for review in a small web UI. When
-a review is approved, the generated Markdown is written back to Paperless and,
-optionally, merged into the matching daily note in an Obsidian vault.
+Serves an API to be called by a Paperless-NGX workflow when a document is
+added. The service downloads the PDF, rasterizes each page, runs OCR and a
+parsing prompt through an OpenAI-compatible API, and stores the result for
+review in a small web UI. When a review is approved, the generated Markdown is
+written back to Paperless and, optionally, merged into the matching daily note
+in an Obsidian vault.
 
 ## How it works
 
@@ -22,6 +23,20 @@ optionally, merged into the matching daily note in an Obsidian vault.
 4. Approving a review updates the Paperless document content and tags it. If
    Obsidian is enabled, the entries are merged into the configured bullet
    journal section of that day's note.
+
+## UI
+
+### Review list UI
+
+<img src="./docs/imgs/review-list-ui.png" />
+
+### Review list UI
+
+<img src="./docs/imgs/review-ui.png" />
+
+### Updating the bujo
+
+TODO
 
 ## Dependencies
 
@@ -41,7 +56,7 @@ git clone <repository-url>
 cd bujo-digitizer
 
 # Install runtime and development dependencies
-uv sync
+make deps
 
 # Create the environment file and fill in the values
 cp .env.example .env
@@ -74,13 +89,13 @@ directly during development:
 
 ```sh
 # Create a new timestamped SQL migration
-uv run yoyo new --sql -m "add my column"
+make migration-new
 
 # Apply pending migrations
-uv run yoyo apply --batch
+make migrate
 
 # Show applied and pending migrations
-uv run yoyo list
+make migration-ls
 ```
 
 An existing database is adopted by the idempotent initial migration, so no
@@ -90,10 +105,19 @@ manual baseline is needed. If `SQLITE_PATH` is customized, pass the matching
 ## Run
 
 ```sh
-uv run bujo-digitizer
+# listens on 127.0.0.1
+make dev
 ```
 
-The service listens on `http://0.0.0.0:8000`. Open `/` for the review list or
+or
+
+```sh
+# listens on 0.0.0.0
+make dev-open
+```
+
+The service listens on `http://0.0.0.0:8000` or `http://127.0.0.1:8000`
+depending whether `make dev` or `make dev`. Open `/` for the review list or
 `/docs` for the generated API documentation.
 
 Point a Paperless webhook at `POST http://<host>:8000/digitize/webhook` with a
@@ -102,7 +126,7 @@ JSON body containing `doc_id`, `doc_title`, and optionally `created`.
 ## Test
 
 ```sh
-uv run pytest
+make test
 ```
 
 The tests use temporary SQLite databases and fake OpenAI/Paperless clients, so
@@ -113,7 +137,7 @@ they do not need network access or real credentials.
 Build the Python package:
 
 ```sh
-uv build
+make build
 ```
 
 Build and run the container:
