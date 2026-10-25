@@ -1,7 +1,7 @@
 [project]
 name = "bujo-digitizer"
 version = "0.1.0"
-description = "Add your description here"
+description = "Digitize scanned bullet-journal pages from Paperless-ngx into structured Markdown and sync them to Obsidian."
 readme = "README.md"
 authors = [
 	{ name = "Josep Marcello", email = "josep@josepmarcello.com" }
@@ -27,6 +27,7 @@ bujo-digitizer = "bujo_digitizer:main"
 
 [dependency-groups]
 dev = [
+	"anyio>=4.14.2",
 	"pytest>=9.1.1",
 ]
 
