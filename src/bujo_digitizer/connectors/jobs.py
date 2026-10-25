@@ -106,20 +106,19 @@ class DigitizeJobStore(SqliteStore):
 				UPDATE digitize_job
 				   SET status = ?, last_error = NULL, updated_at = datetime('now')
 				 WHERE status = ?
-				   AND id IN (
-					SELECT MAX(failed.id)
-					  FROM digitize_job failed
-					 WHERE failed.status = ?
-					   AND NOT EXISTS (
-						SELECT 1
-						  FROM digitize_job active
-						 WHERE active.paperless_doc_id = failed.paperless_doc_id
-						   AND active.status IN (?, ?)
-					   )
-					 GROUP BY failed.paperless_doc_id
+				   AND id = (
+					SELECT MAX(newest.id)
+					  FROM digitize_job newest
+					 WHERE newest.paperless_doc_id = digitize_job.paperless_doc_id
+				   )
+				   AND NOT EXISTS (
+					SELECT 1
+					  FROM digitize_job active
+					 WHERE active.paperless_doc_id = digitize_job.paperless_doc_id
+					   AND active.status IN (?, ?)
 				   )
 				""",
-				(JOB_STATUS_PENDING, JOB_STATUS_FAILED, JOB_STATUS_FAILED, JOB_STATUS_PENDING, JOB_STATUS_RUNNING),
+				(JOB_STATUS_PENDING, JOB_STATUS_FAILED, JOB_STATUS_PENDING, JOB_STATUS_RUNNING),
 			)
 			return int(cursor.rowcount)
 
