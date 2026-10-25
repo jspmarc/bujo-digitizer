@@ -9,7 +9,7 @@ from pydantic import ValidationError
 
 from bujo_digitizer.config import Settings
 from bujo_digitizer.connectors import JOB_STATUS_FAILED, DigitizeJobStore, DigitizeResultStore
-from bujo_digitizer.controllers import DigitizeController, PaperlessController
+from bujo_digitizer.controllers import DigitizeController, ObsidianController, PaperlessController
 from bujo_digitizer.exceptions import PaperlessControllerException
 from bujo_digitizer.logger import get_logger
 from bujo_digitizer.models import HealthResponse, PaperlessWebhookPayload, ParserOutput
@@ -30,6 +30,7 @@ class Router:
 		settings: Settings,
 		controller: DigitizeController,
 		paperless_controller: PaperlessController,
+		obsidian_controller: ObsidianController,
 		store: DigitizeResultStore,
 		jobs: DigitizeJobStore,
 		templates: Jinja2Templates,
@@ -37,6 +38,7 @@ class Router:
 		self._settings: Settings = settings
 		self._controller: DigitizeController = controller
 		self._paperless_controller: PaperlessController = paperless_controller
+		self._obsidian_controller: ObsidianController = obsidian_controller
 		self._store: DigitizeResultStore = store
 		self._jobs: DigitizeJobStore = jobs
 		self._templates: Jinja2Templates = templates
@@ -150,7 +152,10 @@ class Router:
 			raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Review not found.")
 
 		try:
-			content = ParserOutput.model_validate_json(parse_result).to_markdown() if parse_result else ""
+			content_raw = (
+				ParserOutput.model_validate_json(parse_result) if parse_result else ParserOutput.model_validate("[]")
+			)
+			content = content_raw.to_markdown()
 		except ValidationError as exc:
 			raise HTTPException(
 				status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -160,10 +165,14 @@ class Router:
 		try:
 			await self._paperless_controller.update_document_content(row["paperless_doc_id"], content)
 			await self._paperless_controller.add_document_tag(row["paperless_doc_id"], DIGITIZED_TAG_ID)
-		except PaperlessControllerException as exc:
+			try:
+				await asyncio.to_thread(self._obsidian_controller.modify_obsidian, row["doc_created"], content_raw)
+			except OSError:
+				logger.exception("Failed to update Obsidian for doc %s", row["paperless_doc_id"])
+		except* PaperlessControllerException as exc:
 			raise HTTPException(
 				status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-				detail=str(exc),
+				detail=str(exc.exceptions[0]),
 			)
 
 		return HTMLResponse(content="Updated.")
