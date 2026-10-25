@@ -1,7 +1,10 @@
 import asyncio
 import json
+import re
+from html import escape
 from typing import Annotated
 
+from bs4 import BeautifulSoup
 from fastapi import APIRouter, Form, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -21,6 +24,22 @@ from bujo_digitizer.router.common import render_reviews
 from bujo_digitizer.utils import RASTER_MIME_TYPE
 
 logger = get_logger(__name__)
+
+_BBOX_VALUES = re.compile(r"\s*-?\d+(?:\.\d+)?(?:\s+-?\d+(?:\.\d+)?){3}\s*")
+
+
+def _safe_bbox_html(html: object) -> str:
+	"""Rebuild OCR box markup with only the geometry and text the overlay reads."""
+	if not isinstance(html, str):
+		return ""
+	boxes: list[str] = []
+	for box in BeautifulSoup(html, "html.parser").select("div[data-bbox]"):
+		bbox = str(box.get("data-bbox", ""))
+		if _BBOX_VALUES.fullmatch(bbox) is None:
+			continue
+		text = box.get_text(" ", strip=True)
+		boxes.append(f'<div data-bbox="{escape(bbox, quote=True)}">{escape(text)}</div>')
+	return "".join(boxes)
 
 
 class ReviewsRouter:
@@ -84,7 +103,7 @@ class ReviewsRouter:
 		bbox_pages = json.loads(row["bbox_elements"]) if row["bbox_elements"] else []
 		page_count = await asyncio.to_thread(self._store.page_count, id)
 		pages = [
-			{"index": index, "bbox_html": bbox_pages[index] if index < len(bbox_pages) else ""}
+			{"index": index, "bbox_html": _safe_bbox_html(bbox_pages[index]) if index < len(bbox_pages) else ""}
 			for index in range(page_count)
 		]
 		return self._templates.TemplateResponse(

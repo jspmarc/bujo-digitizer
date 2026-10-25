@@ -1,3 +1,4 @@
+import json
 from dataclasses import dataclass, field
 from importlib import resources
 
@@ -196,6 +197,19 @@ def test_review_content_renders_pages_and_bboxes(routes: RouteContext) -> None:
 	assert response.status_code == 200
 	assert "data-bbox" in response.text
 	assert "hi" in response.text
+
+
+def test_review_content_strips_unsafe_bbox_markup(routes: RouteContext) -> None:
+	bbox_html = '<div data-bbox="0 0 1 1">ocr<img src=x onerror=alert(1)><script>alert(2)</script></div>'
+	review_id = routes.store.save(7, "My document", "2026-01-05", None, json.dumps([bbox_html]), [b"\xff\xd8page"])
+
+	response = routes.client.get(f"/reviews/{review_id}/content")
+
+	assert response.status_code == 200
+	assert 'data-bbox="0 0 1 1"' in response.text
+	assert "ocr" in response.text
+	assert "onerror" not in response.text
+	assert "<script" not in response.text
 
 
 def test_review_page_image(routes: RouteContext) -> None:
