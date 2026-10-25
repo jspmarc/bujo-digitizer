@@ -5,8 +5,7 @@ from bujo_digitizer.config import Settings
 from bujo_digitizer.connectors import DigitizeJobStore, DigitizeResultStore
 from bujo_digitizer.controllers import DigitizeController, ObsidianController, PaperlessController
 from bujo_digitizer.router.digitize import DigitizeRouter
-from bujo_digitizer.router.obsidian import ObsidianRouter
-from bujo_digitizer.router.paperless import PaperlessRouter
+from bujo_digitizer.router.reviews import ReviewsRouter
 
 
 class Router:
@@ -59,20 +58,13 @@ class Router:
 			).router
 		)
 		self._router.include_router(
-			PaperlessRouter(
-				settings=settings,
-				paperless_controller=paperless_controller,
-				store=store,
-				templates=self._templates,
-				jobs=jobs,
-			).router
-		)
-		self._router.include_router(
-			ObsidianRouter(
+			ReviewsRouter(
 				settings=settings,
 				paperless_controller=paperless_controller,
 				obsidian_controller=obsidian_controller,
 				store=store,
+				templates=self._templates,
+				jobs=jobs,
 			).router
 		)
 
