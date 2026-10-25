@@ -1,14 +1,22 @@
+import re
+from datetime import date
 from functools import lru_cache
 from importlib import resources
+from pathlib import Path
+from typing import ClassVar, TypedDict
 
 import httpx2
-from bs4 import BeautifulSoup, NavigableString, ResultSet, Tag
+from bs4 import BeautifulSoup, ResultSet, Tag, element
 from openai import AsyncOpenAI
 
 from bujo_digitizer.config import get_settings
 from bujo_digitizer.exceptions import PaperlessControllerException
 from bujo_digitizer.logger import get_logger
 from bujo_digitizer.models import (
+	_MARKERS_REVERSE,
+	BujoEntry,
+	BujoTimeGroup,
+	BujoType,
 	DigitizeRequest,
 	DigitizeResponse,
 	HealthResponse,
@@ -112,7 +120,7 @@ class DigitizeController:
 	def _block_text(div: Tag) -> str:
 		parts: list[str] = []
 		for child in div.descendants:
-			if isinstance(child, NavigableString):
+			if isinstance(child, element):
 				parts.append(str(child))
 			elif getattr(child, "name", None) == "br":
 				parts.append("\n")
@@ -176,3 +184,186 @@ class DigitizeController:
 	@staticmethod
 	async def health() -> HealthResponse:
 		return HealthResponse(status="ok")
+
+
+class ObsidianController:
+	_HEADING_RE: ClassVar[re.Pattern[str]] = re.compile(r"^(#{1,6})\s+(.*?)\s*$")
+	_FENCE_RE: ClassVar[re.Pattern[str]] = re.compile(r"^\s*(```|~~~)")
+	_BUJO_TIME_RE: ClassVar[re.Pattern[str]] = re.compile(r"^(?:[01]\d|2[0-9]):[0-5]\d$")
+
+	class _EntryDict(TypedDict):
+		"""copies the shape of models.BujoEntry but allow mutations"""
+		type: BujoType
+		note: str
+		sub_entries: list[ObsidianController._EntryDict]
+
+	def __init__(self, enabled: bool = True, obsidian_path: str | None = None, section_name: str = "Bujo"):
+		self._enabled: bool = enabled
+		self._obsidian_path: str | None = obsidian_path
+		self._section_name: str = section_name
+
+		if self._enabled and self._obsidian_path is None:
+			raise ValueError("Obsidian Bujo is enabled, but the path is not supplied.")
+		elif not self._enabled:
+			logger.info("Obsidian Bujo is disabled.")
+
+	def _note_path(self, created: date) -> Path:
+		week_created = created.isocalendar().week
+		year_created = created.isocalendar().year
+		return Path(self._obsidian_path or "") / str(year_created) / f"W{week_created:02d}" / f"{created:%Y-%m-%d}.md"
+
+	def _locate_section(self, lines: list[str]) -> tuple[int, int]:
+		"""Return (heading_idx, section_end) line indices for the configured section."""
+
+		heading_idx: int = -1
+		heading_level: int = 0
+		in_fence = False
+		for i, line in enumerate(lines):
+			if ObsidianController._FENCE_RE.match(line):
+				in_fence = not in_fence
+				continue
+			if in_fence:
+				continue
+
+			matched = ObsidianController._HEADING_RE.match(line)
+			if matched and matched.group(2).strip().casefold() == self._section_name.casefold():
+				heading_idx = i
+				heading_level = len(matched.group(1))
+				break
+
+		if heading_idx < 0:
+			raise ValueError(f"Section {self._section_name!r} not found.")
+
+		section_end: int = len(lines)
+		in_fence = False
+		for i in range(heading_idx + 1, len(lines)):
+			if ObsidianController._FENCE_RE.match(lines[i]):
+				in_fence = not in_fence
+				continue
+			if in_fence:
+				continue
+
+			matched = ObsidianController._HEADING_RE.match(lines[i])
+			if matched and len(matched.group(1)) <= heading_level:
+				section_end = i
+				break
+
+		return heading_idx, section_end
+
+	@staticmethod
+	def _parse_section(section_lines: list[str]) -> ParserOutput:
+		"""Parse a Bujo section's lines back into a ParserOutput."""
+
+		# entries are built as plain dicts first: BujoEntry is frozen, so nesting is assembled bottom-up
+		groups: list[BujoTimeGroup] = []
+		current_time = ""
+		current_roots: list[ObsidianController._EntryDict] = []
+		entry_stack: list[tuple[int, ObsidianController._EntryDict]] = []
+		last_entry: ObsidianController._EntryDict | None = None
+
+		def build(entry_dict: ObsidianController._EntryDict) -> BujoEntry:
+			sub = entry_dict["sub_entries"]
+			return BujoEntry(
+				type=entry_dict["type"],
+				note=entry_dict["note"],
+				sub_entries=[build(child) for child in sub] if sub else None,
+			)
+
+		def flush() -> None:
+			nonlocal current_time, current_roots, entry_stack, last_entry
+			if current_time or current_roots:
+				groups.append(
+					BujoTimeGroup(time=current_time, bujos=[build(item) for item in current_roots]),
+				)
+			current_time, current_roots, entry_stack = "", [], []
+			last_entry = None
+
+		for raw in section_lines:
+			stripped = raw.strip()
+			if not stripped:
+				# blank line separates time groups; a pending empty group keeps waiting for entries
+				if current_roots:
+					flush()
+				continue
+
+			if ObsidianController._BUJO_TIME_RE.fullmatch(stripped):
+				flush()
+				current_time = stripped
+				continue
+
+			indent = raw[: len(raw) - len(raw.lstrip())]
+			depth = len(indent.expandtabs(4)) // 4
+
+			entry_dict: ObsidianController._EntryDict
+			body = stripped[2:] if stripped.startswith("- ") else None
+			if body is not None and body[:1] in "([":
+				marker = body[:3]
+				if marker in _MARKERS_REVERSE:
+					entry_dict = {"type": _MARKERS_REVERSE[marker], "note": body[3:].strip(), "sub_entries": []}
+					while entry_stack and entry_stack[-1][0] >= depth:
+						entry_stack.pop()
+					if entry_stack:
+						entry_stack[-1][1]["sub_entries"].append(entry_dict)
+					else:
+						current_roots.append(entry_dict)
+					entry_stack.append((depth, entry_dict))
+					last_entry = entry_dict
+					continue
+			if last_entry is not None:
+				# a line without a marker is a wrapped continuation of the previous note
+				last_entry["note"] = f"{last_entry['note']} {stripped if body is None else body}".strip()
+			else:
+				logger.debug("Unrecognized Bujo line %r; treating as thought.", raw)
+				note = stripped if body is None else body
+				entry_dict = {"type": BujoType.THOUGHT, "note": note, "sub_entries": []}
+				current_roots.append(entry_dict)
+				entry_stack = [(depth, entry_dict)]
+				last_entry = entry_dict
+
+		flush()
+		return ParserOutput(root=groups)
+
+	def modify_obsidian(self, doc_created: str, content: ParserOutput) -> None:
+		if not self._enabled:
+			return
+
+		if self._obsidian_path is None:
+			raise ValueError("Obsidian Bujo is enabled, but the path is not supplied.")
+
+		try:
+			created = date.fromisoformat(doc_created)
+		except ValueError:
+			logger.warning("Invalid Paperless created date %r; skipping Obsidian update.", doc_created)
+			return
+
+		note_path = self._note_path(created)
+		if not note_path.exists():
+			raise FileNotFoundError(f"Obsidian file is not found on {note_path}. Skipping.")
+
+		with note_path.open("r", encoding="utf-8") as f:
+			md_content = f.read()
+		lines = md_content.splitlines()
+
+		heading_idx, section_end = self._locate_section(lines)
+		existing = self._parse_section(lines[heading_idx + 1 : section_end])
+		merged = self._merge_section(existing, content)
+
+		new_lines = lines[: heading_idx + 1]
+		merged_md = merged.to_markdown()
+		if merged_md:
+			new_lines += ["", *merged_md.splitlines()]
+		if section_end < len(lines) and merged_md:
+			new_lines.append("")
+		new_lines += lines[section_end:]
+
+		with note_path.open("w", encoding="utf-8") as f:
+			f.write("\n".join(new_lines) + "\n")
+
+	@staticmethod
+	def _merge_section(existing: ParserOutput, new: ParserOutput) -> ParserOutput:
+		combined: dict[str, list[BujoEntry]] = {}
+		for time_group in [*existing.root, *new.root]:
+			combined.setdefault(time_group.time, []).extend(time_group.bujos)
+		for time, bujos in combined.items():
+			combined[time] = list(dict.fromkeys(bujos))
+		return ParserOutput(root=[BujoTimeGroup(time=time, bujos=bujos) for time, bujos in combined.items()])

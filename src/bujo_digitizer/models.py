@@ -17,9 +17,15 @@ class BujoType(str, Enum):
 
 
 class BujoEntry(BaseModel):
+	model_config = ConfigDict(frozen=True)
+
 	type: BujoType
 	note: str
 	sub_entries: list[BujoEntry] | None = None
+
+	def __hash__(self) -> int:
+		# frozen's auto __hash__ can't handle the list field; JSON captures all fields recursively
+		return hash(self.model_dump_json())
 
 
 class BujoTimeGroup(BaseModel):
@@ -37,6 +43,7 @@ _MARKERS: dict[BujoType, str] = {
 	BujoType.FUTURE_TASK: "[>]",
 	BujoType.OBSIDIAN_TASK: "[<]",
 }
+_MARKERS_REVERSE: dict[str, BujoType] = {v: k for k, v in _MARKERS.items()}
 
 
 def _format_entries(entries: list[BujoEntry], depth: int = 0) -> list[str]:
@@ -56,6 +63,9 @@ class ParserOutput(RootModel[list[BujoTimeGroup]]):
 			lines += _format_entries(group.bujos)
 			groups.append("\n".join(lines))
 		return "\n\n".join(groups)
+
+	def to_dict(self) -> dict[str, list[BujoEntry]]:
+		return {time_group.time: time_group.bujos for time_group in self.root}
 
 
 class DigitizeRequest(BaseModel):
