@@ -84,7 +84,12 @@ class DigitizeWorker:
 		"""Periodically give failed jobs another chance by requeuing them."""
 		while True:
 			await asyncio.sleep(self._retry_interval)
-			retried = await asyncio.to_thread(self._jobs.retry_failed)
+			try:
+				retried = await asyncio.to_thread(self._jobs.retry_failed)
+			except Exception as error:
+				# A single sweep failure must not kill the retry loop for good.
+				logger.error("Failed to requeue failed digitize jobs: %s", error, exc_info=error)
+				continue
 			if retried:
 				logger.info("Requeued %d failed digitize job(s) for another attempt", retried)
 

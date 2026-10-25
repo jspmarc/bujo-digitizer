@@ -83,7 +83,9 @@ concurrency/polling, `OBSIDIAN_BUJO_ENABLED`,
 `DOCKER_DATA_DIR` is not an app setting: it is read by `docker-compose.yaml`
 at compose time (shell env or repo-root `.env`) to pick the host directory
 bind-mounted as `/data`, defaulting to `./data`. The container always uses
-`SQLITE_PATH=/data/bujo_digitizer.sqlite3`.
+`SQLITE_PATH=/data/bujo_digitizer.sqlite3`. The container runs as root by
+default; set `DOCKER_UID`/`DOCKER_GID` (e.g. `DOCKER_UID=$(id -u) DOCKER_GID=$(id -g)`)
+to keep files in the data directory owned by you.
 
 ## Database migrations
 

@@ -15,9 +15,8 @@ class SqliteStore:
 	def _connect(self) -> Generator[sqlite3.Connection]:
 		conn = sqlite3.connect(self._db_path)
 		conn.row_factory = sqlite3.Row
-		# The request handlers and the background worker write concurrently, so let them
-		# share the file (WAL) and wait briefly instead of failing on a locked database.
-		conn.execute("PRAGMA journal_mode=WAL")
+		# Set the wait first: switching journal modes takes an exclusive lock, and the
+		# request handlers and the background worker write to the same file.
 		conn.execute("PRAGMA busy_timeout=5000")
 		try:
 			yield conn
@@ -27,3 +26,7 @@ class SqliteStore:
 
 	def initialize(self) -> None:
 		migrate(self._db_path)
+		# WAL is persistent in the database file, so enable it once after migrating
+		# instead of racing the delete->wal transition on every new connection.
+		with self._connect() as conn:
+			_ = conn.execute("PRAGMA journal_mode=WAL")

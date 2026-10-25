@@ -8,7 +8,9 @@ from starlette.testclient import TestClient
 
 from bujo_digitizer.config import Settings
 from bujo_digitizer.connectors import (
+	JOB_STATUS_FAILED,
 	JOB_STATUS_PENDING,
+	JOB_STATUS_RUNNING,
 	DigitizeJobStore,
 	DigitizeResultStore,
 )
@@ -156,6 +158,16 @@ def test_digitize_webhook_deduplicates_active_jobs(routes: RouteContext) -> None
 	assert first.json()["job_id"] == second.json()["job_id"]
 
 
+def test_digitize_webhook_reports_the_existing_job_status(routes: RouteContext) -> None:
+	first = routes.client.post("/digitize/webhook", json={"doc_id": 7, "doc_title": "My document"}).json()
+	_ = routes.jobs.claim_next()
+
+	second = routes.client.post("/digitize/webhook", json={"doc_id": 7, "doc_title": "My document"}).json()
+
+	assert second["job_id"] == first["job_id"]
+	assert second["status"] == JOB_STATUS_RUNNING
+
+
 def test_reviews_list_shows_jobs_and_rows(routes: RouteContext) -> None:
 	_ = _save_review(routes.store)
 	_ = routes.jobs.enqueue(7, "My document", "")
@@ -283,6 +295,16 @@ def test_job_retry_rejects_a_job_that_is_not_failed(routes: RouteContext) -> Non
 	response = routes.client.post(f"/jobs/{job_id}/retry")
 
 	assert response.status_code == 409
+
+
+def test_job_retry_rejects_a_job_while_another_one_is_active(routes: RouteContext) -> None:
+	job_id = _failed_job(routes.jobs)
+	_ = routes.jobs.enqueue(7, "My document", "")
+
+	response = routes.client.post(f"/jobs/{job_id}/retry")
+
+	assert response.status_code == 409
+	assert routes.jobs.get(job_id)["status"] == JOB_STATUS_FAILED
 
 
 def test_job_delete(routes: RouteContext) -> None:

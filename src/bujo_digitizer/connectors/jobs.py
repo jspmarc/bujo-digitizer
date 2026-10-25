@@ -102,8 +102,24 @@ class DigitizeJobStore(SqliteStore):
 	def retry_failed(self) -> int:
 		with self._connect() as conn:
 			cursor = conn.execute(
-				"UPDATE digitize_job SET status = ?, last_error = NULL, updated_at = datetime('now') WHERE status = ?",
-				(JOB_STATUS_PENDING, JOB_STATUS_FAILED),
+				"""
+				UPDATE digitize_job
+				   SET status = ?, last_error = NULL, updated_at = datetime('now')
+				 WHERE status = ?
+				   AND id IN (
+					SELECT MAX(failed.id)
+					  FROM digitize_job failed
+					 WHERE failed.status = ?
+					   AND NOT EXISTS (
+						SELECT 1
+						  FROM digitize_job active
+						 WHERE active.paperless_doc_id = failed.paperless_doc_id
+						   AND active.status IN (?, ?)
+					   )
+					 GROUP BY failed.paperless_doc_id
+				   )
+				""",
+				(JOB_STATUS_PENDING, JOB_STATUS_FAILED, JOB_STATUS_FAILED, JOB_STATUS_PENDING, JOB_STATUS_RUNNING),
 			)
 			return int(cursor.rowcount)
 
@@ -113,14 +129,21 @@ class DigitizeJobStore(SqliteStore):
 			return _to_job_row(row) if row is not None else None
 
 	def retry(self, id: int) -> bool:
+		"""Requeue one failed job unless another job for its document is active."""
 		with self._connect() as conn:
 			cursor = conn.execute(
 				"""
 				UPDATE digitize_job
 				   SET status = ?, attempts = 0, last_error = NULL, updated_at = datetime('now')
 				 WHERE id = ? AND status = ?
+				   AND NOT EXISTS (
+					SELECT 1
+					  FROM digitize_job active
+					 WHERE active.paperless_doc_id = digitize_job.paperless_doc_id
+					   AND active.status IN (?, ?)
+				   )
 				""",
-				(JOB_STATUS_PENDING, id, JOB_STATUS_FAILED),
+				(JOB_STATUS_PENDING, id, JOB_STATUS_FAILED, JOB_STATUS_PENDING, JOB_STATUS_RUNNING),
 			)
 			return cursor.rowcount > 0
 

@@ -107,6 +107,41 @@ def test_retry_failed_requeues_failed_jobs(jobs: DigitizeJobStore) -> None:
 	assert job["last_error"] is None
 
 
+def test_retry_failed_skips_documents_with_an_active_job(jobs: DigitizeJobStore) -> None:
+	failed_id = jobs.enqueue(7, "Doc", "", max_attempts=1)
+	jobs.claim_next()
+	jobs.fail(failed_id, "boom")
+	# a redelivered webhook queues a fresh job while the failed one still exists
+	active_id = jobs.enqueue(7, "Doc", "")
+
+	assert jobs.retry_failed() == 0
+	assert jobs.get(failed_id)["status"] == JOB_STATUS_FAILED
+	assert jobs.get(active_id)["status"] == JOB_STATUS_PENDING
+
+
+def test_retry_failed_requeues_one_job_per_document(jobs: DigitizeJobStore) -> None:
+	first = jobs.enqueue(7, "Doc", "", max_attempts=1)
+	jobs.claim_next()
+	jobs.fail(first, "boom")
+	second = jobs.enqueue(7, "Doc", "", max_attempts=1)
+	jobs.claim_next()
+	jobs.fail(second, "boom again")
+
+	assert jobs.retry_failed() == 1
+	statuses = {jobs.get(first)["status"], jobs.get(second)["status"]}
+	assert statuses == {JOB_STATUS_PENDING, JOB_STATUS_FAILED}
+
+
+def test_retry_refuses_when_the_document_has_an_active_job(jobs: DigitizeJobStore) -> None:
+	failed_id = jobs.enqueue(7, "Doc", "", max_attempts=1)
+	jobs.claim_next()
+	jobs.fail(failed_id, "boom")
+	_ = jobs.enqueue(7, "Doc", "")
+
+	assert jobs.retry(failed_id) is False
+	assert jobs.get(failed_id)["status"] == JOB_STATUS_FAILED
+
+
 def test_retry_resets_attempts_for_a_failed_job(jobs: DigitizeJobStore) -> None:
 	job_id = jobs.enqueue(7, "Doc", "", max_attempts=1)
 	jobs.claim_next()

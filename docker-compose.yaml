@@ -13,4 +13,7 @@ services:
       SQLITE_PATH: /data/bujo_digitizer.sqlite3
     volumes:
       - ${DOCKER_DATA_DIR:-./data}:/data
+    # Opt in to a non-root user to keep bind-mounted files owned by you, e.g.
+    # DOCKER_UID=$(id -u) DOCKER_GID=$(id -g) make docker-run
+    user: "${DOCKER_UID:-0}:${DOCKER_GID:-0}"
     restart: always

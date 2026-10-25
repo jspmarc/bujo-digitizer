@@ -1,12 +1,16 @@
 import os
+import tempfile
 from io import BytesIO
+from pathlib import Path
 
 import pypdfium2 as pdfium
 import pytest
 
-# Importing bujo_digitizer builds the app, which resolves Settings eagerly.
-# Keep the suite hermetic instead of relying on a developer's .env file, and
-# put these env vars in place before the package import below.
+# Importing bujo_digitizer builds the app, which resolves Settings eagerly and runs
+# migrations. Keep the suite hermetic instead of relying on a developer's .env file
+# (or writing a db into the working directory), and put these env vars in place
+# before the package import below.
+os.environ.setdefault("SQLITE_PATH", str(Path(tempfile.mkdtemp()) / "test.sqlite3"))
 os.environ.setdefault("OPENAI_API_KEY", "test-key")
 os.environ.setdefault("OPENAI_BASE_URL", "http://openai.test/v1")
 os.environ.setdefault("PAPERLESS_BASE_URL", "http://paperless.test")
