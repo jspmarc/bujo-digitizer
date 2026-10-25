@@ -71,9 +71,10 @@ Core `.env` values:
 | `OPENAI_API_KEY` | API key for that endpoint; defaults to `a` for keyless local OpenAI-compatible servers |
 | `PAPERLESS_BASE_URL` | Paperless-ngx base URL |
 | `PAPERLESS_TOKEN` | Paperless API token |
+| `PAPERLESS_DIGITIZED_TAG_ID` | Id of the Paperless tag applied when a review is approved |
 
 Useful optional values are documented in `.env.example` (`SQLITE_PATH`, worker
-concurrency/polling, `PAPERLESS_DIGITIZED_TAG_ID`, `OBSIDIAN_BUJO_ENABLED`,
+concurrency/polling, `OBSIDIAN_BUJO_ENABLED`,
 `OBSIDIAN_VAULT_PATH`, and the note template). Model defaults live in
 `config.py`; override them with `OCR_MODEL`, `OCR_TEMPERATURE`,
 `OCR_REASONING_BUDGET_TOKENS`, `PARSER_MODEL`, `PARSER_TEMPERATURE`, and

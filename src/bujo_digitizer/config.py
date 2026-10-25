@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 	parser_reasoning_budget_tokens: int = Field(default=256, ge=0, alias="PARSER_REASONING_BUDGET_TOKENS")
 	paperless_base_url: str = Field(alias="PAPERLESS_BASE_URL")
 	paperless_token: str = Field(alias="PAPERLESS_TOKEN")
-	paperless_digitized_tag_id: int = Field(default=6, ge=1, alias="PAPERLESS_DIGITIZED_TAG_ID")
+	paperless_digitized_tag_id: int = Field(ge=1, alias="PAPERLESS_DIGITIZED_TAG_ID")
 	sqlite_path: str = Field(default="./bujo_digitizer.sqlite3", alias="SQLITE_PATH")
 	worker_poll_seconds: float = Field(default=2.0, alias="WORKER_POLL_SECONDS")
 	worker_concurrency: int = Field(default=1, alias="WORKER_CONCURRENCY")
