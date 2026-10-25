@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.14"
 
 [[package]]
@@ -54,6 +54,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "httpx2" },
     { name = "jinja2" },
+    { name = "marko" },
     { name = "openai" },
     { name = "pillow" },
     { name = "pydantic" },
@@ -69,6 +70,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.141.1" },
     { name = "httpx2", specifier = ">=2.12.0,<3" },
     { name = "jinja2", specifier = ">=3.1.6" },
+    { name = "marko", specifier = ">=2.2.4" },
     { name = "openai", specifier = ">=3.13.0" },
     { name = "pillow", specifier = ">=12.3.0" },
     { name = "pydantic", specifier = ">=2.12.5" },
@@ -232,6 +234,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/21/e3/4b1a43501fb9ed17b01d137e380cb0e8fdcb39a254ce31aa2ab95bc861ac/jiter-0.17.0-cp315-cp315t-win32.whl", hash = "sha256:86d703d9faa1ffc8ae4e9de0fa007712ed2171b5c0d93811a8e2e105ac729b0d", size = 184603, upload-time = "2026-09-12T15:13:59.27Z" },
     { url = "https://files.pythonhosted.org/packages/f9/f2/b8ee0372b6ebdf1bde5cc44495d5291d17f961065f5b48f8616cc67cac2e/jiter-0.17.0-cp315-cp315t-win_amd64.whl", hash = "sha256:42b0260445251b1bc520a63baa94a32d88e0f931fba234f1764db7feb7c72174", size = 227936, upload-time = "2026-09-12T15:14:00.472Z" },
     { url = "https://files.pythonhosted.org/packages/a4/b4/923a1215daba959aed8355973315cb3f81f53e0d01c5b211870a27b41f45/jiter-0.17.0-cp315-cp315t-win_arm64.whl", hash = "sha256:d47687806f9c54c84ea38733507081337922beca90ce819c7d852dd485bc0f23", size = 182977, upload-time = "2026-09-12T15:14:01.799Z" },
+]
+
+[[package]]
+name = "marko"
+version = "2.2.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/82/6d/671a18bb386adca6311bca6c2fe6bec873947ee501cc5f8f509ec06bdde0/marko-2.2.4.tar.gz", hash = "sha256:c042c66f835425673123d7536b39b4660de3b68e30078c70fd26245b31170683", size = 151013, upload-time = "2026-08-12T03:20:11.772Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d3/78/751d49c8bdfa0b30147c99235516433af6b63eca367ff28593c7346a0494/marko-2.2.4-py3-none-any.whl", hash = "sha256:d80510506edba096ec49d4720a09645fa0bb78e7b7b88697f20032fc19730aa9", size = 46753, upload-time = "2026-08-12T03:20:10.811Z" },
 ]
 
 [[package]]
