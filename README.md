@@ -36,7 +36,7 @@ in an Obsidian vault.
 
 ### Updating the bujo
 
-<video src="./docs/vids/bujo-update.mp4" controls>A video displaying the project in action.</video>
+<img src="./docs/imgs/bujo-update.gif" alt="An animation displaying the project in action." />
 
 ## Dependencies
 
