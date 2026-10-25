@@ -1,98 +1,85 @@
 import asyncio
 import json
+import re
+from html import escape
 from typing import Annotated
 
+from bs4 import BeautifulSoup
 from fastapi import APIRouter, Form, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
 
 from bujo_digitizer.config import Settings
-from bujo_digitizer.connectors import JOB_STATUS_FAILED, DigitizeJobStore, DigitizeResultStore
-from bujo_digitizer.controllers import DigitizeController, ObsidianController, PaperlessController
-from bujo_digitizer.exceptions import ObsidianControllerException, PaperlessControllerException
+from bujo_digitizer.connectors import DigitizeJobStore, DigitizeResultStore
+from bujo_digitizer.controllers import (
+	ObsidianController,
+	ObsidianControllerException,
+	PaperlessController,
+	PaperlessControllerException,
+)
 from bujo_digitizer.logger import get_logger
-from bujo_digitizer.models import HealthResponse, PaperlessWebhookPayload, ParserOutput
+from bujo_digitizer.models import ParserOutput
+from bujo_digitizer.router.common import render_reviews
 from bujo_digitizer.utils import RASTER_MIME_TYPE
-
-# 12 bytes should be enough to determine the mime type of an image file (up to JPEG-XL).
-MIME_TYPE_BYTES = 12
 
 logger = get_logger(__name__)
 
+_BBOX_VALUES = re.compile(r"\s*-?\d+(?:\.\d+)?(?:\s+-?\d+(?:\.\d+)?){3}\s*")
 
-class Router:
-	"""HTTP routes for the digitizer. Dependencies are injected from main.py."""
+
+def _safe_bbox_html(html: object) -> str:
+	"""Rebuild OCR box markup with only the geometry and text the overlay reads."""
+	if not isinstance(html, str):
+		return ""
+	boxes: list[str] = []
+	for box in BeautifulSoup(html, "html.parser").select("div[data-bbox]"):
+		bbox = str(box.get("data-bbox", ""))
+		if _BBOX_VALUES.fullmatch(bbox) is None:
+			continue
+		text = box.get_text(" ", strip=True)
+		boxes.append(f'<div data-bbox="{escape(bbox, quote=True)}">{escape(text)}</div>')
+	return "".join(boxes)
+
+
+class ReviewsRouter:
+	"""Review listing, detail, approval, and deletion routes."""
 
 	def __init__(
 		self,
 		*,
 		settings: Settings,
-		controller: DigitizeController,
 		paperless_controller: PaperlessController,
 		obsidian_controller: ObsidianController,
 		store: DigitizeResultStore,
-		jobs: DigitizeJobStore,
 		templates: Jinja2Templates,
+		jobs: DigitizeJobStore,
 	) -> None:
 		self._settings: Settings = settings
-		self._controller: DigitizeController = controller
 		self._paperless_controller: PaperlessController = paperless_controller
 		self._obsidian_controller: ObsidianController = obsidian_controller
 		self._store: DigitizeResultStore = store
-		self._jobs: DigitizeJobStore = jobs
 		self._templates: Jinja2Templates = templates
+		self._jobs: DigitizeJobStore = jobs
 		self._router: APIRouter = APIRouter()
 		self._register_routes()
 
 	@property
-	def router(self):
+	def router(self) -> APIRouter:
 		return self._router
 
 	def _register_routes(self) -> None:
 		r = self._router
-		r.add_api_route("/", self.index, methods=["GET"], include_in_schema=False)
-		r.add_api_route("/health", self.health, methods=["GET"], response_model=HealthResponse)
-		r.add_api_route(
-			"/digitize/webhook",
-			self.digitize_webhook,
-			methods=["POST"],
-			status_code=status.HTTP_202_ACCEPTED,
-		)
 		r.add_api_route("/reviews", self.reviews_list, methods=["GET"])
 		r.add_api_route("/reviews/{id}", self.review_page, methods=["GET"], include_in_schema=False)
 		r.add_api_route("/reviews/{id}/content", self.review_content, methods=["GET"])
 		r.add_api_route("/reviews/{id}/page/{page_index}", self.review_page_image, methods=["GET"])
 		r.add_api_route("/reviews/{id}/document", self.review_document, methods=["GET"])
-		r.add_api_route("/reviews/{id}", self.review_update, methods=["POST"])
 		r.add_api_route("/reviews/{id}", self.review_delete, methods=["DELETE"])
-		r.add_api_route("/jobs/{id}/retry", self.job_retry, methods=["POST"])
-		r.add_api_route("/jobs/{id}", self.job_delete, methods=["DELETE"])
-
-	async def index(self, request: Request):
-		return self._templates.TemplateResponse(request, "index.html")
-
-	async def health(self) -> HealthResponse:
-		return await self._controller.health()
-
-	async def digitize_webhook(self, payload: PaperlessWebhookPayload):
-		logger.info(f"Payload is {payload}")
-		job_id = await asyncio.to_thread(
-			self._jobs.enqueue,
-			payload.doc_id,
-			payload.doc_title,
-			payload.created.isoformat() if payload.created is not None else "",
-			self._settings.job_max_attempts,
-		)
-		return {"job_id": job_id, "doc_id": payload.doc_id, "status": "pending"}
-
-	async def _render_reviews(self, request: Request):
-		rows = await asyncio.to_thread(self._store.list_all)
-		open_jobs = await asyncio.to_thread(self._jobs.list_jobs)
-		return self._templates.TemplateResponse(request, "_review_list.html", {"rows": rows, "jobs": open_jobs})
+		r.add_api_route("/reviews/{id}", self.review_update, methods=["POST"])
 
 	async def reviews_list(self, request: Request):
-		return await self._render_reviews(request)
+		return await render_reviews(request, self._store, self._jobs, self._templates)
 
 	async def review_page(self, request: Request, id: int):
 		row = await asyncio.to_thread(self._store.get, id)
@@ -116,7 +103,7 @@ class Router:
 		bbox_pages = json.loads(row["bbox_elements"]) if row["bbox_elements"] else []
 		page_count = await asyncio.to_thread(self._store.page_count, id)
 		pages = [
-			{"index": index, "bbox_html": bbox_pages[index] if index < len(bbox_pages) else ""}
+			{"index": index, "bbox_html": _safe_bbox_html(bbox_pages[index]) if index < len(bbox_pages) else ""}
 			for index in range(page_count)
 		]
 		return self._templates.TemplateResponse(
@@ -144,9 +131,14 @@ class Router:
 			)
 		return Response(content=content, media_type=mime or "application/pdf")
 
-	async def review_update(self, id: int, parse_result: Annotated[str, Form()]):
-		DIGITIZED_TAG_ID = 6
+	async def review_delete(self, id: int):
+		row = await asyncio.to_thread(self._store.get, id)
+		if row is None:
+			raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Review not found.")
+		await asyncio.to_thread(self._store.delete, id)
+		return HTMLResponse(content="Deleted.")
 
+	async def review_update(self, id: int, parse_result: Annotated[str, Form()]):
 		row = await asyncio.to_thread(self._store.get, id)
 		if row is None:
 			raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Review not found.")
@@ -162,7 +154,9 @@ class Router:
 
 		try:
 			await self._paperless_controller.update_document_content(row["paperless_doc_id"], content)
-			await self._paperless_controller.add_document_tag(row["paperless_doc_id"], DIGITIZED_TAG_ID)
+			await self._paperless_controller.add_document_tag(
+				row["paperless_doc_id"], self._settings.paperless_digitized_tag_id
+			)
 			if self._settings.obsidian_bujo_enabled:
 				doc_created = row["doc_created"]
 				if not doc_created:
@@ -183,26 +177,3 @@ class Router:
 			) from exc
 
 		return HTMLResponse(content="Updated.")
-
-	async def review_delete(self, id: int):
-		await asyncio.to_thread(self._store.delete, id)
-		return HTMLResponse(content="Deleted.")
-
-	async def job_retry(self, request: Request, id: int):
-		job = await asyncio.to_thread(self._jobs.get, id)
-		if job is None:
-			raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Job {id} not found.")
-		if job["status"] != JOB_STATUS_FAILED:
-			raise HTTPException(
-				status_code=status.HTTP_409_CONFLICT,
-				detail=f"Job {id} is '{job['status']}'; only failed jobs can be retried.",
-			)
-		await asyncio.to_thread(self._jobs.retry, id)
-		return await self._render_reviews(request)
-
-	async def job_delete(self, request: Request, id: int):
-		job = await asyncio.to_thread(self._jobs.get, id)
-		if job is None:
-			raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Job {id} not found.")
-		await asyncio.to_thread(self._jobs.delete, id)
-		return await self._render_reviews(request)

@@ -62,11 +62,22 @@ class DigitizeWorker:
 
 	async def _run(self) -> None:
 		while True:
-			job = await asyncio.to_thread(self._jobs.claim_next)
-			if job is None:
+			await self._semaphore.acquire()
+			try:
+				job = await asyncio.to_thread(self._jobs.claim_next)
+			except asyncio.CancelledError:
+				self._semaphore.release()
+				raise
+			except Exception as error:
+				# A single claim failure must not kill the consumer loop for good.
+				logger.error("Failed to claim a digitize job: %s", error, exc_info=error)
+				self._semaphore.release()
 				await asyncio.sleep(self._poll_interval)
 				continue
-			_ = await self._semaphore.acquire()
+			if job is None:
+				self._semaphore.release()
+				await asyncio.sleep(self._poll_interval)
+				continue
 			task = asyncio.create_task(self._process(job))
 			self._tasks.add(task)
 			task.add_done_callback(self._on_task_done)
@@ -84,7 +95,12 @@ class DigitizeWorker:
 		"""Periodically give failed jobs another chance by requeuing them."""
 		while True:
 			await asyncio.sleep(self._retry_interval)
-			retried = await asyncio.to_thread(self._jobs.retry_failed)
+			try:
+				retried = await asyncio.to_thread(self._jobs.retry_failed)
+			except Exception as error:
+				# A single sweep failure must not kill the retry loop for good.
+				logger.error("Failed to requeue failed digitize jobs: %s", error, exc_info=error)
+				continue
 			if retried:
 				logger.info("Requeued %d failed digitize job(s) for another attempt", retried)
 

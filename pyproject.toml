@@ -1,7 +1,7 @@
 [project]
 name = "bujo-digitizer"
 version = "0.1.0"
-description = "Add your description here"
+description = "Digitize scanned bullet-journal pages from Paperless-ngx into structured Markdown and sync them to Obsidian."
 readme = "README.md"
 authors = [
 	{ name = "Josep Marcello", email = "josep@josepmarcello.com" }
@@ -19,10 +19,18 @@ dependencies = [
 	"pypdfium2>=5.13.0",
 	"python-multipart>=0.0.32",
 	"uvicorn>=0.52.4",
+	"yoyo-migrations>=9.0.0",
 ]
 
 [project.scripts]
 bujo-digitizer = "bujo_digitizer:main"
+
+[dependency-groups]
+dev = [
+	"anyio>=4.14.2",
+	"pytest>=9.1.1",
+	"ruff>=0.16",
+]
 
 [build-system]
 requires = ["uv_build>=0.13.5,<0.14.0"]
@@ -30,6 +38,7 @@ build-backend = "uv_build"
 
 [tool.uv.build-backend]
 source-include = [
+	"src/bujo_digitizer/migrations/**",
 	"src/bujo_digitizer/prompts/**",
 	"src/bujo_digitizer/templates/**",
 	"src/bujo_digitizer/static/**"

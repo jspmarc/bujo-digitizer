@@ -1,5 +1,6 @@
 .git
 .gitignore
+.env
 .venv
 __pycache__
 *.py[cod]
@@ -10,4 +11,8 @@ __pycache__
 build
 dist
 wheels
+*.sqlite3*
+data/
+docs/
+REVIEW.md
 body.json
