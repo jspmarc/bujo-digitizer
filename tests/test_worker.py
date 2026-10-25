@@ -1,3 +1,4 @@
+import sqlite3
 from collections.abc import Callable
 
 import anyio
@@ -31,6 +32,23 @@ class FakeDigitizeController:
 	async def digitize(self, request: DigitizeRequest) -> DigitizeResponse:
 		self.requests.append(request)
 		return DigitizeResponse(parser_output=ParserOutput(root=[]), ocr_results_with_bb=[])
+
+
+class FlakyJobStore:
+	"""Fails the first claim and delegates everything else, like a briefly locked database."""
+
+	def __init__(self, store: DigitizeJobStore) -> None:
+		self._store: DigitizeJobStore = store
+		self._failures: int = 1
+
+	def __getattr__(self, name: str) -> object:
+		return getattr(self._store, name)
+
+	def claim_next(self):
+		if self._failures:
+			self._failures -= 1
+			raise sqlite3.OperationalError("database is locked")
+		return self._store.claim_next()
 
 
 async def _wait_until(predicate: Callable[[], bool], timeout: float = 5.0) -> None:
@@ -78,6 +96,28 @@ async def test_start_processes_a_queued_job_and_saves_the_result(stores, pdf_byt
 	assert store.page_count(rows[0]["id"]) == 2
 	assert len(controller.requests) == 1
 	assert len(controller.requests[0].file_urls) == 2
+
+
+@pytest.mark.anyio
+async def test_claim_failure_does_not_stop_the_consumer_loop(stores, pdf_bytes: bytes) -> None:
+	store, jobs = stores
+	flaky = FlakyJobStore(jobs)
+	worker = DigitizeWorker(
+		flaky,
+		store,
+		FakeDigitizeController(),
+		FakePaperlessController(pdf_bytes),
+		poll_interval=0.01,
+	)
+
+	await worker.start()
+	try:
+		job_id = jobs.enqueue(7, "My document", "2026-01-05")
+		await _wait_until(lambda: jobs.get(job_id)["status"] == JOB_STATUS_DONE)
+	finally:
+		await worker.aclose()
+
+	assert jobs.get(job_id)["status"] == JOB_STATUS_DONE
 
 
 @pytest.mark.anyio
