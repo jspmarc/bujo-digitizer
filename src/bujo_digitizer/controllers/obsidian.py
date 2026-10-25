@@ -3,235 +3,32 @@ import re
 import tempfile
 import threading
 from datetime import date, datetime
-from functools import lru_cache
-from importlib import resources
 from pathlib import Path
-from typing import ClassVar, TypedDict
+from typing import TypedDict
 
-import httpx2
-from bs4 import BeautifulSoup, NavigableString, ResultSet, Tag
-from openai import AsyncOpenAI
-
-from bujo_digitizer.config import get_settings
-from bujo_digitizer.exceptions import ObsidianControllerException, PaperlessControllerException
 from bujo_digitizer.logger import get_logger
-from bujo_digitizer.models import (
-	MARKERS_REVERSE,
-	BujoEntry,
-	BujoTimeGroup,
-	BujoType,
-	DigitizeRequest,
-	DigitizeResponse,
-	HealthResponse,
-	ParserOutput,
-)
+from bujo_digitizer.models import MARKERS_REVERSE, BujoEntry, BujoTimeGroup, BujoType, ParserOutput
 
 logger = get_logger(__name__)
 
-
-class PaperlessController:
-	def __init__(self, base_url: str, token: str):
-		self._base_url: str = base_url
-		self._token: str = token
-		self._client: httpx2.AsyncClient = httpx2.AsyncClient(timeout=30.0)
-
-	@staticmethod
-	def _date_only(value: object) -> str:
-		"""Normalize a Paperless date/datetime value to an ISO `YYYY-MM-DD` string (empty when absent)."""
-		if not value:
-			return ""
-		text = str(value).strip()
-		try:
-			return datetime.fromisoformat(text).date().isoformat()
-		except ValueError:
-			# not a datetime: assume it is already a date (or a dateless prefix we can slice)
-			return text[:10]
-
-	def _get_headers(self) -> dict[str, str]:
-		return {"Authorization": f"Token {self._token}"}
-
-	async def aclose(self) -> None:
-		await self._client.aclose()
-
-	async def download_document(self, id: int) -> tuple[bytes, str | None]:
-		doc_url = f"{self._base_url}/api/documents/{id}/download/"
-		try:
-			response = await self._client.get(doc_url, headers=self._get_headers())
-			_ = response.raise_for_status()
-		except httpx2.HTTPStatusError as exc:
-			raise PaperlessControllerException(
-				f"Paperless API returned {exc.response.status_code} for {doc_url}."
-			) from exc
-		except httpx2.HTTPError as exc:
-			raise PaperlessControllerException("Failed to reach Paperless API") from exc
-		return response.content, response.headers.get("content-type")
-
-	async def update_document_content(self, id: int, content: str) -> None:
-		patch_url = f"{self._base_url}/api/documents/{id}/"
-		request_body = {
-			"content": content,
-		}
-		try:
-			response = await self._client.patch(
-				patch_url,
-				json=request_body,
-				headers=self._get_headers(),
-			)
-			_ = response.raise_for_status()
-		except httpx2.HTTPStatusError as exc:
-			raise PaperlessControllerException(
-				f"Paperless API returned {exc.response.status_code} for {patch_url}."
-			) from exc
-		except httpx2.HTTPError as exc:
-			raise PaperlessControllerException("Failed to reach Paperless API") from exc
-
-	async def add_document_tag(self, id: int, tag_id: int) -> None:
-		bulk_url = f"{self._base_url}/api/documents/bulk_edit/"
-		request_body = {
-			"documents": [id],
-			"method": "add_tag",
-			"parameters": {"tag": tag_id},
-		}
-		try:
-			response = await self._client.post(
-				bulk_url,
-				json=request_body,
-				headers=self._get_headers(),
-			)
-			_ = response.raise_for_status()
-		except httpx2.HTTPStatusError as exc:
-			raise PaperlessControllerException(
-				f"Paperless API returned {exc.response.status_code} for {bulk_url}."
-			) from exc
-		except httpx2.HTTPError as exc:
-			raise PaperlessControllerException("Failed to reach Paperless API") from exc
-
-	async def get_created(self, id: int) -> str:
-		"""The document's `created` date (YYYY-MM-DD), or an empty string when Paperless has none."""
-		doc_url = f"{self._base_url}/api/documents/{id}/"
-		try:
-			response = await self._client.get(doc_url, headers=self._get_headers())
-			_ = response.raise_for_status()
-		except httpx2.HTTPStatusError as exc:
-			raise PaperlessControllerException(
-				f"Paperless API returned {exc.response.status_code} for {doc_url}."
-			) from exc
-		except httpx2.HTTPError as exc:
-			raise PaperlessControllerException("Failed to reach Paperless API") from exc
-
-		try:
-			created = response.json().get("created")
-		except ValueError as exc:
-			raise PaperlessControllerException(f"Paperless API returned invalid JSON for {doc_url}.") from exc
-		return self._date_only(created or "")
+_HEADING_RE: re.Pattern[str] = re.compile(r"^(#{1,6})\s+(.*?)\s*$")
+_FENCE_RE: re.Pattern[str] = re.compile(r"^\s*(```|~~~)")
+_BUJO_TIME_RE: re.Pattern[str] = re.compile(r"^(?:[01]\d|2[0-9]):[0-5]\d$")
 
 
-class DigitizeController:
-	def __init__(self):
-		openai_client_settings = get_settings()
-		self._client: AsyncOpenAI = AsyncOpenAI(
-			api_key=openai_client_settings.openai_api_key,
-			base_url=openai_client_settings.openai_base_url,
-			max_retries=1,
-		)
+class _EntryDict(TypedDict):
+	"""copies the shape of models.BujoEntry but allow mutations"""
 
-	async def aclose(self) -> None:
-		await self._client.close()
+	type: BujoType
+	note: str
+	sub_entries: list[_EntryDict]
 
-	@classmethod
-	@lru_cache
-	def __load_parser_prompt(cls) -> str:
-		prompt = resources.files("bujo_digitizer").joinpath("prompts", "parser.md").read_text()
-		json_format = resources.files("bujo_digitizer").joinpath("prompts", "parser_format.json").read_text()
-		return prompt.replace("<###JSON_FORMAT###>", json_format)
 
-	@classmethod
-	@lru_cache
-	def __load_ocr_prompt(cls) -> str:
-		return resources.files("bujo_digitizer").joinpath("prompts", "ocr.md").read_text()
-
-	@staticmethod
-	def _block_text(div: Tag) -> str:
-		parts: list[str] = []
-		for child in div.descendants:
-			if isinstance(child, NavigableString):
-				parts.append(str(child))
-			elif getattr(child, "name", None) == "br":
-				parts.append("\n")
-		return "".join(parts)
-
-	async def digitize(self, request: DigitizeRequest) -> DigitizeResponse:
-		client = self._client
-
-		ocr_results_with_bb: list[ResultSet[Tag]] = []
-		ocr_texts: list[str] = []
-
-		for file_url in request.file_urls:
-			content = [
-				{"type": "input_image", "image_url": file_url},
-				{"type": "input_text", "text": self.__load_ocr_prompt()},
-			]
-
-			response = await client.responses.create(
-				model="chandra-ocr-2",
-				input=[{"role": "user", "content": content}],
-				temperature=0.5,
-				extra_body={"reasoning_budget_tokens": 3072},
-			)
-			ocr_result = "\n".join(
-				part.text
-				for item in response.output
-				if item.type == "reasoning" and item.content
-				for part in item.content
-			)
-			logger.debug("OCR LLM response: %s", ocr_result)
-
-			bs = BeautifulSoup(ocr_result, features="html.parser")
-			page_boxes = bs.select("div[data-bbox]")
-			ocr_results_with_bb.append(page_boxes)
-			ocr_texts.append("\n".join(self._block_text(x) for x in page_boxes))
-			logger.debug("OCR result cleaned: %s", ocr_texts[-1])
-
-		content = [{"type": "input_image", "image_url": file_url} for file_url in request.file_urls]
-		content.append({"type": "input_text", "text": "\n".join(ocr_texts)})
-		response = await client.responses.parse(
-			model="qwen-3.8-27b",
-			input=[
-				{"role": "system", "content": self.__load_parser_prompt()},
-				{"role": "user", "content": content},
-			],
-			reasoning={"effort": "low"},
-			text_format=ParserOutput,
-			timeout=180.0,
-			temperature=0.6,
-			top_p=0.95,
-			extra_body={"reasoning_budget_tokens": 256},
-		)
-		logger.debug("Parser LLM raw response: %s", response.output_text)
-		logger.debug("Parser LLM response: %s", response.output_parsed)
-
-		return DigitizeResponse(
-			parser_output=response.output_parsed,
-			ocr_results_with_bb=ocr_results_with_bb,
-		)
-
-	@staticmethod
-	async def health() -> HealthResponse:
-		return HealthResponse(status="ok")
+class ObsidianControllerException(Exception):
+	"""Raised when an Obsidian note update fails (missing note/section, invalid date, IO error)."""
 
 
 class ObsidianController:
-	_HEADING_RE: ClassVar[re.Pattern[str]] = re.compile(r"^(#{1,6})\s+(.*?)\s*$")
-	_FENCE_RE: ClassVar[re.Pattern[str]] = re.compile(r"^\s*(```|~~~)")
-	_BUJO_TIME_RE: ClassVar[re.Pattern[str]] = re.compile(r"^(?:[01]\d|2[0-9]):[0-5]\d$")
-
-	class _EntryDict(TypedDict):
-		"""copies the shape of models.BujoEntry but allow mutations"""
-
-		type: BujoType
-		note: str
-		sub_entries: list[ObsidianController._EntryDict]
-
 	def __init__(
 		self,
 		enabled: bool = True,
@@ -267,13 +64,13 @@ class ObsidianController:
 		heading_idx: int = -1
 		in_fence = False
 		for i, line in enumerate(lines):
-			if ObsidianController._FENCE_RE.match(line):
+			if _FENCE_RE.match(line):
 				in_fence = not in_fence
 				continue
 			if in_fence:
 				continue
 
-			matched = ObsidianController._HEADING_RE.match(line)
+			matched = _HEADING_RE.match(line)
 			if matched and matched.group(2).strip().casefold() == self._section_name.casefold():
 				heading_idx = i
 				break
@@ -284,13 +81,13 @@ class ObsidianController:
 		section_end: int = len(lines)
 		in_fence = False
 		for i in range(heading_idx + 1, len(lines)):
-			if ObsidianController._FENCE_RE.match(lines[i]):
+			if _FENCE_RE.match(lines[i]):
 				in_fence = not in_fence
 				continue
 			if in_fence:
 				continue
 
-			matched = ObsidianController._HEADING_RE.match(lines[i])
+			matched = _HEADING_RE.match(lines[i])
 			# the whole surgical edit should only edit the content under one header and new
 			# headers should be treated as the section_end
 			if matched:
@@ -306,11 +103,11 @@ class ObsidianController:
 		# entries are built as plain dicts first: BujoEntry is frozen, so nesting is assembled bottom-up
 		groups: list[BujoTimeGroup] = []
 		current_time = ""
-		current_roots: list[ObsidianController._EntryDict] = []
-		entry_stack: list[tuple[int, ObsidianController._EntryDict]] = []
-		last_entry: ObsidianController._EntryDict | None = None
+		current_roots: list[_EntryDict] = []
+		entry_stack: list[tuple[int, _EntryDict]] = []
+		last_entry: _EntryDict | None = None
 
-		def build(entry_dict: ObsidianController._EntryDict) -> BujoEntry:
+		def build(entry_dict: _EntryDict) -> BujoEntry:
 			sub = entry_dict["sub_entries"]
 			return BujoEntry(
 				type=entry_dict["type"],
@@ -318,7 +115,7 @@ class ObsidianController:
 				sub_entries=[build(child) for child in sub] if sub else None,
 			)
 
-		def _attach(entry_dict: ObsidianController._EntryDict, depth: int) -> None:
+		def _attach(entry_dict: _EntryDict, depth: int) -> None:
 			# nest under the deepest entry shallower than `depth`, or make a new root
 			while entry_stack and entry_stack[-1][0] >= depth:
 				_ = entry_stack.pop()
@@ -345,7 +142,7 @@ class ObsidianController:
 					flush()
 				continue
 
-			if ObsidianController._BUJO_TIME_RE.fullmatch(stripped):
+			if _BUJO_TIME_RE.fullmatch(stripped):
 				flush()
 				current_time = stripped
 				continue
@@ -355,7 +152,7 @@ class ObsidianController:
 			# compares relative depths, so the generated tab indent (4 cols) still nests correctly
 			depth = len(indent.expandtabs(4)) // 2
 
-			entry_dict: ObsidianController._EntryDict
+			entry_dict: _EntryDict
 			body = stripped[2:] if stripped[:2] in ("- ", "* ", "+ ") else None
 			if body is not None and body[:1] in "([":
 				marker = body[:3]
