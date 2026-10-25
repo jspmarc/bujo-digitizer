@@ -19,6 +19,12 @@ class DigitizeController:
 			base_url=openai_client_settings.openai_base_url,
 			max_retries=1,
 		)
+		self._ocr_model: str = openai_client_settings.ocr_model
+		self._ocr_temperature: float = openai_client_settings.ocr_temperature
+		self._ocr_reasoning_budget_tokens: int = openai_client_settings.ocr_reasoning_budget_tokens
+		self._parser_model: str = openai_client_settings.parser_model
+		self._parser_temperature: float = openai_client_settings.parser_temperature
+		self._parser_reasoning_budget_tokens: int = openai_client_settings.parser_reasoning_budget_tokens
 
 	async def aclose(self) -> None:
 		await self._client.close()
@@ -58,10 +64,10 @@ class DigitizeController:
 			]
 
 			response = await client.responses.create(
-				model="chandra-ocr-2",
+				model=self._ocr_model,
 				input=[{"role": "user", "content": content}],
-				temperature=0.5,
-				extra_body={"reasoning_budget_tokens": 3072},
+				temperature=self._ocr_temperature,
+				extra_body={"reasoning_budget_tokens": self._ocr_reasoning_budget_tokens},
 			)
 			ocr_result = "\n".join(
 				part.text
@@ -80,7 +86,7 @@ class DigitizeController:
 		content = [{"type": "input_image", "image_url": file_url} for file_url in request.file_urls]
 		content.append({"type": "input_text", "text": "\n".join(ocr_texts)})
 		response = await client.responses.parse(
-			model="qwen-3.8-27b",
+			model=self._parser_model,
 			input=[
 				{"role": "system", "content": self.__load_parser_prompt()},
 				{"role": "user", "content": content},
@@ -88,9 +94,9 @@ class DigitizeController:
 			reasoning={"effort": "low"},
 			text_format=ParserOutput,
 			timeout=180.0,
-			temperature=0.6,
+			temperature=self._parser_temperature,
 			top_p=0.95,
-			extra_body={"reasoning_budget_tokens": 256},
+			extra_body={"reasoning_budget_tokens": self._parser_reasoning_budget_tokens},
 		)
 		logger.debug("Parser LLM raw response: %s", response.output_text)
 		logger.debug("Parser LLM response: %s", response.output_parsed)

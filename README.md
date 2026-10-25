@@ -12,13 +12,16 @@ optionally, merged into the matching daily note in an Obsidian vault.
 
 ## How it works
 
-1. `POST /digitize/webhook` queues a Paperless document.
-2. A background worker downloads the PDF, renders pages to images, and calls the
-   OCR and parser models.
+1. Set up a Paperless-NGX worfklow which hits the 1. `POST /digitize/webhook`
+   API.
+2. The API will queue it as an async job in SQLite.
+2. A background worker will take the job, download the PDF, render pages to
+   images (becase llama.cpp does not support PDFs just yet), and call the OCR
+   and parser models.
 3. Results wait under `/reviews` for a human to inspect and edit.
 4. Approving a review updates the Paperless document content and tags it. If
-   Obsidian is enabled, the entries are merged into the configured `Bujo`
-   section of that day's note.
+   Obsidian is enabled, the entries are merged into the configured bullet
+   journal section of that day's note.
 
 ## Dependencies
 
@@ -56,7 +59,9 @@ Required `.env` values:
 
 Useful optional values are documented in `.env.example` (`SQLITE_PATH`, worker
 concurrency/polling, `OBSIDIAN_BUJO_ENABLED`, `OBSIDIAN_VAULT_PATH`, and the
-note template).
+note template). Model names, temperatures, and reasoning budgets are set with
+`OCR_MODEL`, `OCR_TEMPERATURE`, `OCR_REASONING_BUDGET_TOKENS`, `PARSER_MODEL`,
+`PARSER_TEMPERATURE`, and `PARSER_REASONING_BUDGET_TOKENS`.
 
 ## Database migrations
 

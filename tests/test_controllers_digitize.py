@@ -2,6 +2,7 @@ from typing import Any
 
 import pytest
 
+from bujo_digitizer.config import get_settings
 from bujo_digitizer.controllers import DigitizeController
 from bujo_digitizer.models import BujoTimeGroup, DigitizeRequest, ParserOutput
 
@@ -101,3 +102,35 @@ async def test_aclose_closes_the_openai_client() -> None:
 	await controller.aclose()
 
 	assert fake.closed is True
+
+
+@pytest.mark.anyio
+async def test_digitize_uses_configured_models_and_sampling(monkeypatch) -> None:
+	monkeypatch.setenv("OCR_MODEL", "ocr-test")
+	monkeypatch.setenv("OCR_TEMPERATURE", "0.25")
+	monkeypatch.setenv("OCR_REASONING_BUDGET_TOKENS", "111")
+	monkeypatch.setenv("PARSER_MODEL", "parser-test")
+	monkeypatch.setenv("PARSER_TEMPERATURE", "0.75")
+	monkeypatch.setenv("PARSER_REASONING_BUDGET_TOKENS", "222")
+	get_settings.cache_clear()
+
+	responses = _Responses('<div data-bbox="0 0 1 1">x</div>', ParserOutput(root=[]))
+	fake = _FakeOpenAI(responses)
+	controller = DigitizeController()
+	await controller.aclose()
+	controller._client = fake
+	try:
+		_ = await controller.digitize(DigitizeRequest(file_urls=["data:image/jpeg;base64,AAA"]))
+	finally:
+		await controller.aclose()
+		get_settings.cache_clear()
+
+	ocr_call = responses.create_calls[0]
+	assert ocr_call["model"] == "ocr-test"
+	assert ocr_call["temperature"] == 0.25
+	assert ocr_call["extra_body"] == {"reasoning_budget_tokens": 111}
+
+	parser_call = responses.parse_calls[0]
+	assert parser_call["model"] == "parser-test"
+	assert parser_call["temperature"] == 0.75
+	assert parser_call["extra_body"] == {"reasoning_budget_tokens": 222}
