@@ -1,5 +1,10 @@
 .PHONY: deps install-deps dev dev-open migration-new migration-ls migrate test lint fmt build build-docker docker-build docker-run docker-down docker-logs
 
+# The migration targets honor SQLITE_PATH. Read it from .env when the shell does
+# not already provide it, so `SQLITE_PATH=/x make migrate` still wins.
+SQLITE_PATH ?= $(shell sed -n 's/^SQLITE_PATH=//p' .env 2>/dev/null | tail -n 1)
+export SQLITE_PATH
+
 deps:
 	uv sync
 
