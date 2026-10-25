@@ -5,7 +5,7 @@
 	<li>
 		<span>[{{ job.status }}]</span>
 		document {{ job.doc_title }} (Paperless ID: {{ job.paperless_doc_id }},
-		attempt {{ job.attempts }}/{{ job.max_attempts }})
+		{% if job.status == 'failed' %}{{ job.attempts }} attempt{{ 's' if job.attempts != 1 else '' }}{% else %}attempt {{ job.attempts }}/{{ job.max_attempts }}{% endif %})
 		{% if job.last_error %}<br /><small>{{ job.last_error }}</small>{% endif %}
 		{% if job.status == 'failed' %}
 		<button

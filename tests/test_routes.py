@@ -177,6 +177,18 @@ def test_reviews_list_shows_jobs_and_rows(routes: RouteContext) -> None:
 
 	assert response.status_code == 200
 	assert "My document" in response.text
+
+
+def test_reviews_list_shows_failed_jobs_as_a_total_attempts(routes: RouteContext) -> None:
+	job_id = _failed_job(routes.jobs)
+	assert routes.jobs.retry_failed() == 1
+	_ = routes.jobs.claim_next()
+	routes.jobs.fail(job_id, "boom again")
+
+	response = routes.client.get("/reviews")
+
+	assert "2 attempts" in response.text
+	assert "2/1" not in response.text
 	assert "Digitizing" in response.text
 
 
