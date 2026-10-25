@@ -84,7 +84,8 @@ concurrency/polling, `OBSIDIAN_BUJO_ENABLED`,
 
 Schema changes are migration files under `src/bujo_digitizer/migrations/`, managed by
 [yoyo-migrations](https://pypi.org/project/yoyo-migrations/). `yoyo.ini` points
-at that folder and the default SQLite database.
+at that folder; the database is passed with `--database` so the make targets
+honor `SQLITE_PATH`.
 
 Migrations are applied automatically on startup, but the CLI can be used
 directly during development:
