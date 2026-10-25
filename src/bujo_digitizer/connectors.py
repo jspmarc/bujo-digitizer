@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS to_review_digitize_result (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	paperless_doc_id INTEGER NOT NULL,
 	doc_title TEXT NOT NULL,
+	doc_created TEXT NOT NULL DEFAULT '',
 	parse_result TEXT,
 	bbox_elements TEXT NOT NULL
 )
@@ -27,6 +28,7 @@ CREATE TABLE IF NOT EXISTS digitize_job (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	paperless_doc_id INTEGER NOT NULL,
 	doc_title TEXT NOT NULL,
+	doc_created TEXT NOT NULL DEFAULT '',
 	status TEXT NOT NULL DEFAULT 'pending',
 	attempts INTEGER NOT NULL DEFAULT 0,
 	max_attempts INTEGER NOT NULL DEFAULT 3,
@@ -54,6 +56,7 @@ class DigitizeResultRow(TypedDict):
 	id: int
 	paperless_doc_id: int
 	doc_title: str
+	doc_created: str
 	parse_result: str | None
 	bbox_elements: str
 
@@ -62,6 +65,7 @@ class DigitizeJobRow(TypedDict):
 	id: int
 	paperless_doc_id: int
 	doc_title: str
+	doc_created: str
 	status: str
 	attempts: int
 	max_attempts: int
@@ -75,6 +79,7 @@ def _to_row(row: sqlite3.Row) -> DigitizeResultRow:
 		id=row["id"],
 		paperless_doc_id=row["paperless_doc_id"],
 		doc_title=row["doc_title"],
+		doc_created=row["doc_created"],
 		parse_result=row["parse_result"],
 		bbox_elements=row["bbox_elements"],
 	)
@@ -85,6 +90,7 @@ def _to_job_row(row: sqlite3.Row) -> DigitizeJobRow:
 		id=row["id"],
 		paperless_doc_id=row["paperless_doc_id"],
 		doc_title=row["doc_title"],
+		doc_created=row["doc_created"],
 		status=row["status"],
 		attempts=row["attempts"],
 		max_attempts=row["max_attempts"],
@@ -123,19 +129,22 @@ class DigitizeResultStore(SqliteStore):
 			columns = {row["name"] for row in conn.execute("PRAGMA table_info(to_review_digitize_result)")}
 			if "doc_title" not in columns:
 				conn.execute("ALTER TABLE to_review_digitize_result ADD COLUMN doc_title TEXT NOT NULL DEFAULT ''")
+			if "doc_created" not in columns:
+				conn.execute("ALTER TABLE to_review_digitize_result ADD COLUMN doc_created TEXT NOT NULL DEFAULT ''")
 
 	def save(
 		self,
 		paperless_doc_id: int,
 		doc_title: str,
+		doc_created: str,
 		parse_result: str | None,
 		bbox_elements: str,
 		pages: Sequence[bytes],
 	) -> int:
 		with self._connect() as conn:
 			cursor = conn.execute(
-				"INSERT INTO to_review_digitize_result (paperless_doc_id, doc_title, parse_result, bbox_elements) VALUES (?, ?, ?, ?)",
-				(paperless_doc_id, doc_title, parse_result, bbox_elements),
+				"INSERT INTO to_review_digitize_result (paperless_doc_id, doc_title, doc_created, parse_result, bbox_elements) VALUES (?, ?, ?, ?, ?)",
+				(paperless_doc_id, doc_title, doc_created, parse_result, bbox_elements),
 			)
 			result_id = cursor.lastrowid
 			_ = conn.executemany(
@@ -181,13 +190,16 @@ class DigitizeJobStore(SqliteStore):
 		with self._connect() as conn:
 			conn.execute(_CREATE_JOB_TABLE)
 			conn.execute(_CREATE_JOB_ACTIVE_INDEX)
+			columns = {row["name"] for row in conn.execute("PRAGMA table_info(digitize_job)")}
+			if "doc_created" not in columns:
+				conn.execute("ALTER TABLE digitize_job ADD COLUMN doc_created TEXT NOT NULL DEFAULT ''")
 
-	def enqueue(self, paperless_doc_id: int, doc_title: str, max_attempts: int = 3) -> int:
+	def enqueue(self, paperless_doc_id: int, doc_title: str, doc_created: str, max_attempts: int = 3) -> int:
 		with self._connect() as conn:
 			try:
 				cursor = conn.execute(
-					"INSERT INTO digitize_job (paperless_doc_id, doc_title, max_attempts) VALUES (?, ?, ?)",
-					(paperless_doc_id, doc_title, max_attempts),
+					"INSERT INTO digitize_job (paperless_doc_id, doc_title, doc_created, max_attempts) VALUES (?, ?, ?, ?)",
+					(paperless_doc_id, doc_title, doc_created, max_attempts),
 				)
 				return int(cursor.lastrowid)
 			except sqlite3.IntegrityError:

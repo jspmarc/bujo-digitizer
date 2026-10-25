@@ -79,6 +79,7 @@ class Router:
 			self._jobs.enqueue,
 			payload.doc_id,
 			payload.doc_title,
+			payload.created.isoformat(),
 			self._settings.job_max_attempts,
 		)
 		return {"job_id": job_id, "doc_id": payload.doc_id, "status": "pending"}

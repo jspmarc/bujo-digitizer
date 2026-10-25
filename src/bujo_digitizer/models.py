@@ -1,3 +1,4 @@
+from datetime import date
 from enum import Enum
 
 from bs4 import ResultSet, Tag
@@ -75,3 +76,4 @@ class HealthResponse(BaseModel):
 class PaperlessWebhookPayload(BaseModel):
 	doc_id: int
 	doc_title: str
+	created: date

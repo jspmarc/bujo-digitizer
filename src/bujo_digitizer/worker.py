@@ -111,6 +111,7 @@ class DigitizeWorker:
 				self._store.save,
 				doc_id,
 				job["doc_title"],
+				job["doc_created"],
 				parse_result,
 				bbox_elements,
 				[page.image for page in pages],
