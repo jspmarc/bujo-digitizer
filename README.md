@@ -13,14 +13,14 @@ in an Obsidian vault.
 
 ## How it works
 
-1. Set up a Paperless-NGX worfklow which hits the 1. `POST /digitize/webhook`
+1. Set up a Paperless-NGX workflow which hits the `POST /digitize/webhook`
    API.
 2. The API will queue it as an async job in SQLite.
-2. A background worker will take the job, download the PDF, render pages to
-   images (becase llama.cpp does not support PDFs just yet), and call the OCR
+3. A background worker will take the job, download the PDF, render pages to
+   images (because llama.cpp does not support PDFs just yet), and call the OCR
    and parser models.
-3. Results wait under `/reviews` for a human to inspect and edit.
-4. Approving a review updates the Paperless document content and tags it. If
+4. Results wait under `/reviews` for a human to inspect and edit.
+5. Approving a review updates the Paperless document content and tags it. If
    Obsidian is enabled, the entries are merged into the configured bullet
    journal section of that day's note.
 
@@ -36,7 +36,7 @@ in an Obsidian vault.
 
 ### Updating the bujo
 
-<video src="./docs/vids/bujo-update.mp4" alt="A video displaying the project in action." />
+<video src="./docs/vids/bujo-update.mp4" controls>A video displaying the project in action.</video>
 
 ## Dependencies
 
@@ -117,7 +117,7 @@ make dev-open
 ```
 
 The service listens on `http://0.0.0.0:8000` or `http://127.0.0.1:8000`
-depending whether `make dev` or `make dev`. Open `/` for the review list or
+depending whether `make dev` or `make dev-open`. Open `/` for the review list or
 `/docs` for the generated API documentation.
 
 Point a Paperless webhook at `POST http://<host>:8000/digitize/webhook` with a
