@@ -53,7 +53,7 @@ class DigitizeRouter:
 		return await self._controller.health()
 
 	async def digitize_webhook(self, payload: PaperlessWebhookPayload):
-		logger.info(f"Payload is {payload}")
+		logger.info("Payload is %s", payload)
 		job_id = await asyncio.to_thread(
 			self._jobs.enqueue,
 			payload.doc_id,
@@ -62,9 +62,6 @@ class DigitizeRouter:
 			self._settings.job_max_attempts,
 		)
 		return {"job_id": job_id, "doc_id": payload.doc_id, "status": "pending"}
-
-	async def _render_reviews(self, request: Request):
-		return await render_reviews(request, self._store, self._jobs, self._templates)
 
 	async def job_retry(self, request: Request, id: int):
 		job = await asyncio.to_thread(self._jobs.get, id)
@@ -76,11 +73,11 @@ class DigitizeRouter:
 				detail=f"Job {id} is '{job['status']}'; only failed jobs can be retried.",
 			)
 		await asyncio.to_thread(self._jobs.retry, id)
-		return await self._render_reviews(request)
+		return await render_reviews(request, self._store, self._jobs, self._templates)
 
 	async def job_delete(self, request: Request, id: int):
 		job = await asyncio.to_thread(self._jobs.get, id)
 		if job is None:
 			raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Job {id} not found.")
 		await asyncio.to_thread(self._jobs.delete, id)
-		return await self._render_reviews(request)
+		return await render_reviews(request, self._store, self._jobs, self._templates)
