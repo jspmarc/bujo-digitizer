@@ -113,6 +113,9 @@ class ReviewsRouter:
 		return Response(content=content, media_type=mime or "application/pdf")
 
 	async def review_delete(self, id: int):
+		row = await asyncio.to_thread(self._store.get, id)
+		if row is None:
+			raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Review not found.")
 		await asyncio.to_thread(self._store.delete, id)
 		return HTMLResponse(content="Deleted.")
 

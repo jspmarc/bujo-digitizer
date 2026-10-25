@@ -324,6 +324,7 @@ def test_job_delete(routes: RouteContext) -> None:
 		("GET", "/reviews/999/page/0"),
 		("GET", "/reviews/999/document"),
 		("POST", "/reviews/999"),
+		("DELETE", "/reviews/999"),
 		("POST", "/jobs/999/retry"),
 		("DELETE", "/jobs/999"),
 	],
