@@ -10,7 +10,7 @@ from pydantic import ValidationError
 from bujo_digitizer.config import Settings
 from bujo_digitizer.connectors import JOB_STATUS_FAILED, DigitizeJobStore, DigitizeResultStore
 from bujo_digitizer.controllers import DigitizeController, ObsidianController, PaperlessController
-from bujo_digitizer.exceptions import PaperlessControllerException
+from bujo_digitizer.exceptions import ObsidianControllerException, PaperlessControllerException
 from bujo_digitizer.logger import get_logger
 from bujo_digitizer.models import HealthResponse, PaperlessWebhookPayload, ParserOutput
 from bujo_digitizer.utils import RASTER_MIME_TYPE
@@ -173,13 +173,13 @@ class Router:
 				status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
 				detail=str(exc),
 			)
-		except (OSError, ValueError) as exc:
+		except ObsidianControllerException as exc:
 			# Obsidian is required when enabled: surface the failure so the review can be re-approved
 			logger.exception("Failed to update Obsidian for doc %s", row["paperless_doc_id"])
 			raise HTTPException(
 				status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
 				detail=f"Failed to update Obsidian: {exc}",
-			)
+			) from exc
 
 		return HTMLResponse(content="Updated.")
 

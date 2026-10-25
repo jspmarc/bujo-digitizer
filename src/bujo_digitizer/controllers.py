@@ -12,7 +12,7 @@ from bs4 import BeautifulSoup, NavigableString, ResultSet, Tag
 from openai import AsyncOpenAI
 
 from bujo_digitizer.config import get_settings
-from bujo_digitizer.exceptions import PaperlessControllerException
+from bujo_digitizer.exceptions import ObsidianControllerException, PaperlessControllerException
 from bujo_digitizer.logger import get_logger
 from bujo_digitizer.models import (
 	MARKERS_REVERSE,
@@ -247,7 +247,7 @@ class ObsidianController:
 				break
 
 		if heading_idx < 0:
-			raise ValueError(f"Section {self._section_name!r} not found.")
+			raise ObsidianControllerException(f"Section {self._section_name!r} not found.")
 
 		section_end: int = len(lines)
 		in_fence = False
@@ -277,7 +277,6 @@ class ObsidianController:
 		current_roots: list[ObsidianController._EntryDict] = []
 		entry_stack: list[tuple[int, ObsidianController._EntryDict]] = []
 		last_entry: ObsidianController._EntryDict | None = None
-		last_entry_depth: int = -1
 
 		def build(entry_dict: ObsidianController._EntryDict) -> BujoEntry:
 			sub = entry_dict["sub_entries"]
@@ -298,13 +297,13 @@ class ObsidianController:
 			entry_stack.append((depth, entry_dict))
 
 		def flush() -> None:
-			nonlocal current_time, current_roots, entry_stack, last_entry, last_entry_depth
+			nonlocal current_time, current_roots, entry_stack, last_entry
 			if current_time or current_roots:
 				groups.append(
 					BujoTimeGroup(time=current_time, bujos=[build(item) for item in current_roots]),
 				)
 			current_time, current_roots, entry_stack = "", [], []
-			last_entry, last_entry_depth = None, -1
+			last_entry = None
 
 		for raw in section_lines:
 			stripped = raw.strip()
@@ -327,14 +326,14 @@ class ObsidianController:
 			if body is not None and body[:1] in "([":
 				marker = body[:3]
 				# Obsidian also writes completed checkboxes as "[X]"
-				entry_type = MARKERS_REVERSE.get(marker) or MARKERS_REVERSE.get(marker.lower())
+				entry_type = MARKERS_REVERSE.get(marker.casefold())
 				if entry_type is not None:
 					entry_dict = {"type": entry_type, "note": body[3:].strip(), "sub_entries": []}
 					_attach(entry_dict, depth)
-					last_entry, last_entry_depth = entry_dict, depth
+					last_entry = entry_dict
 					continue
-			if last_entry is not None and body is None and depth > last_entry_depth:
-				# a plain line indented deeper than the last entry is a wrapped continuation of its note
+			if last_entry is not None and body is None:
+				# a plain line after an entry is a wrapped continuation of its note
 				last_entry["note"] = f"{last_entry['note']} {stripped}".strip()
 				continue
 			# unrecognized line: keep the content as a thought entry instead of merging it into a note
@@ -342,7 +341,7 @@ class ObsidianController:
 			note = stripped if body is None else body
 			entry_dict = {"type": BujoType.THOUGHT, "note": note, "sub_entries": []}
 			_attach(entry_dict, depth)
-			last_entry, last_entry_depth = entry_dict, depth
+			last_entry = entry_dict
 
 		flush()
 		return ParserOutput(root=groups)
@@ -352,19 +351,24 @@ class ObsidianController:
 			return
 
 		if self._obsidian_path is None:
-			raise ValueError("Obsidian Bujo is enabled, but the path is not supplied.")
+			raise ObsidianControllerException("Obsidian Bujo is enabled, but the path is not supplied.")
 
 		try:
 			created = date.fromisoformat(doc_created)
 		except ValueError:
-			raise ValueError(f"Invalid created date {doc_created!r}; cannot locate the Obsidian note.") from None
+			raise ObsidianControllerException(
+				f"Invalid created date {doc_created!r}; cannot locate the Obsidian note."
+			) from None
 
 		note_path = self._note_path(created)
 		if not note_path.exists():
-			raise FileNotFoundError(f"Obsidian note {note_path} does not exist; create it and re-approve.")
+			raise ObsidianControllerException(f"Obsidian note {note_path} does not exist; create it and re-approve.")
 
-		with note_path.open("r", encoding="utf-8") as f:
-			md_content = f.read()
+		try:
+			with note_path.open("r", encoding="utf-8") as f:
+				md_content = f.read()
+		except OSError as exc:
+			raise ObsidianControllerException(f"Failed to read Obsidian note {note_path}: {exc}") from exc
 		lines = md_content.splitlines()
 
 		heading_idx, section_end = self._locate_section(lines)
@@ -383,7 +387,10 @@ class ObsidianController:
 			new_lines.append("")
 		new_lines += lines[section_end:]
 
-		self._atomic_write(note_path, "\n".join(new_lines) + "\n")
+		try:
+			self._atomic_write(note_path, "\n".join(new_lines) + "\n")
+		except OSError as exc:
+			raise ObsidianControllerException(f"Failed to write Obsidian note {note_path}: {exc}") from exc
 
 	@staticmethod
 	def _atomic_write(note_path: Path, content: str) -> None:
