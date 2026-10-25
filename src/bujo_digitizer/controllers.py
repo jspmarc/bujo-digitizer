@@ -13,7 +13,7 @@ from bujo_digitizer.config import get_settings
 from bujo_digitizer.exceptions import PaperlessControllerException
 from bujo_digitizer.logger import get_logger
 from bujo_digitizer.models import (
-	_MARKERS_REVERSE,
+	MARKERS_REVERSE,
 	BujoEntry,
 	BujoTimeGroup,
 	BujoType,
@@ -298,10 +298,10 @@ class ObsidianController:
 			body = stripped[2:] if stripped.startswith("- ") else None
 			if body is not None and body[:1] in "([":
 				marker = body[:3]
-				if marker in _MARKERS_REVERSE:
-					entry_dict = {"type": _MARKERS_REVERSE[marker], "note": body[3:].strip(), "sub_entries": []}
+				if marker in MARKERS_REVERSE:
+					entry_dict = {"type": MARKERS_REVERSE[marker], "note": body[3:].strip(), "sub_entries": []}
 					while entry_stack and entry_stack[-1][0] >= depth:
-						entry_stack.pop()
+						_ = entry_stack.pop()
 					if entry_stack:
 						entry_stack[-1][1]["sub_entries"].append(entry_dict)
 					else:

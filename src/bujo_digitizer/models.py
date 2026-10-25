@@ -43,7 +43,7 @@ _MARKERS: dict[BujoType, str] = {
 	BujoType.FUTURE_TASK: "[>]",
 	BujoType.OBSIDIAN_TASK: "[<]",
 }
-_MARKERS_REVERSE: dict[str, BujoType] = {v: k for k, v in _MARKERS.items()}
+MARKERS_REVERSE: dict[str, BujoType] = {v: k for k, v in _MARKERS.items()}
 
 
 def _format_entries(entries: list[BujoEntry], depth: int = 0) -> list[str]:
