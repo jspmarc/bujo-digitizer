@@ -13,4 +13,6 @@ dist
 wheels
 *.sqlite3*
 data/
+docs/
+REVIEW.md
 body.json
