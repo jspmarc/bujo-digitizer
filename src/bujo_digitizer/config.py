@@ -1,3 +1,4 @@
+import os
 from functools import lru_cache
 
 from pydantic import Field, field_validator
@@ -5,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-	model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+	model_config = SettingsConfigDict(env_file=os.environ.get("BUJO_ENV_FILE", ".env"), extra="ignore")
 
 	app_name: str = Field(default="Bujo Digitizer", alias="APP_NAME")
 	log_level: str = Field(default="INFO", alias="LOG_LEVEL")
