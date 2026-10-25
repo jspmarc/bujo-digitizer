@@ -63,24 +63,25 @@ cp .env.example .env
 $EDITOR .env
 ```
 
-Required `.env` values:
+Core `.env` values:
 
 | Variable | Purpose |
 | --- | --- |
 | `OPENAI_BASE_URL` | Base URL of the OpenAI-compatible API |
-| `OPENAI_API_KEY` | API key for that endpoint |
+| `OPENAI_API_KEY` | API key for that endpoint; defaults to `a` for keyless local OpenAI-compatible servers |
 | `PAPERLESS_BASE_URL` | Paperless-ngx base URL |
 | `PAPERLESS_TOKEN` | Paperless API token |
 
 Useful optional values are documented in `.env.example` (`SQLITE_PATH`, worker
-concurrency/polling, `OBSIDIAN_BUJO_ENABLED`, `OBSIDIAN_VAULT_PATH`, and the
-note template). Model names, temperatures, and reasoning budgets are set with
-`OCR_MODEL`, `OCR_TEMPERATURE`, `OCR_REASONING_BUDGET_TOKENS`, `PARSER_MODEL`,
-`PARSER_TEMPERATURE`, and `PARSER_REASONING_BUDGET_TOKENS`.
+concurrency/polling, `PAPERLESS_DIGITIZED_TAG_ID`, `OBSIDIAN_BUJO_ENABLED`,
+`OBSIDIAN_VAULT_PATH`, and the note template). Model defaults live in
+`config.py`; override them with `OCR_MODEL`, `OCR_TEMPERATURE`,
+`OCR_REASONING_BUDGET_TOKENS`, `PARSER_MODEL`, `PARSER_TEMPERATURE`, and
+`PARSER_REASONING_BUDGET_TOKENS`.
 
 ## Database migrations
 
-Schema changes are SQL files under `src/bujo_digitizer/migrations/`, managed by
+Schema changes are migration files under `src/bujo_digitizer/migrations/`, managed by
 [yoyo-migrations](https://pypi.org/project/yoyo-migrations/). `yoyo.ini` points
 at that folder and the default SQLite database.
 
@@ -98,9 +99,10 @@ make migrate
 make migration-ls
 ```
 
-An existing database is adopted by the idempotent initial migration, so no
-manual baseline is needed. If `SQLITE_PATH` is customized, pass the matching
-`--database` URI to yoyo (or update `yoyo.ini`).
+An existing database is adopted as the migration baseline, and a follow-up
+migration adds any columns missing from older schemas, so no manual baseline is
+needed. The `make` targets pass `SQLITE_PATH` through `--database`, so they
+follow a customized database path automatically.
 
 ## Run
 
