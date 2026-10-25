@@ -79,7 +79,10 @@ class DigitizeRouter:
 		if not retried:
 			raise HTTPException(
 				status_code=status.HTTP_409_CONFLICT,
-				detail=f"Another job for document {job['paperless_doc_id']} is pending or running.",
+				detail=(
+					f"Job {id} cannot be retried while a newer or active job exists "
+					f"for document {job['paperless_doc_id']}."
+				),
 			)
 		return await render_reviews(request, self._store, self._jobs, self._templates)
 

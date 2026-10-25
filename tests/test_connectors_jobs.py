@@ -161,6 +161,20 @@ def test_retry_refuses_when_the_document_has_an_active_job(jobs: DigitizeJobStor
 	assert jobs.get(failed_id)["status"] == JOB_STATUS_FAILED
 
 
+def test_retry_refuses_an_older_attempt(jobs: DigitizeJobStore) -> None:
+	first = jobs.enqueue(7, "Doc", "", max_attempts=1)
+	jobs.claim_next()
+	jobs.fail(first, "boom")
+	second = jobs.enqueue(7, "Doc", "", max_attempts=1)
+	jobs.claim_next()
+	jobs.fail(second, "boom again")
+
+	assert jobs.retry(first) is False
+	assert jobs.get(first)["status"] == JOB_STATUS_FAILED
+	assert jobs.retry(second) is True
+	assert jobs.get(second)["status"] == JOB_STATUS_PENDING
+
+
 def test_retry_resets_attempts_for_a_failed_job(jobs: DigitizeJobStore) -> None:
 	job_id = jobs.enqueue(7, "Doc", "", max_attempts=1)
 	jobs.claim_next()

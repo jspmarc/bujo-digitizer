@@ -128,13 +128,18 @@ class DigitizeJobStore(SqliteStore):
 			return _to_job_row(row) if row is not None else None
 
 	def retry(self, id: int) -> bool:
-		"""Requeue one failed job unless another job for its document is active."""
+		"""Requeue one failed job unless a newer attempt or an active job exists for its document."""
 		with self._connect() as conn:
 			cursor = conn.execute(
 				"""
 				UPDATE digitize_job
 				   SET status = ?, attempts = 0, last_error = NULL, updated_at = datetime('now')
 				 WHERE id = ? AND status = ?
+				   AND id = (
+					SELECT MAX(newest.id)
+					  FROM digitize_job newest
+					 WHERE newest.paperless_doc_id = digitize_job.paperless_doc_id
+				   )
 				   AND NOT EXISTS (
 					SELECT 1
 					  FROM digitize_job active
