@@ -3,6 +3,9 @@
 # The migration targets honor SQLITE_PATH. Read it from .env when the shell does
 # not already provide it, so `SQLITE_PATH=/x make migrate` still wins.
 SQLITE_PATH ?= $(shell sed -n 's/^SQLITE_PATH=//p' .env 2>/dev/null | tail -n 1)
+ifeq ($(strip $(SQLITE_PATH)),)
+SQLITE_PATH := ./bujo_digitizer.sqlite3
+endif
 export SQLITE_PATH
 
 deps:
@@ -20,10 +23,10 @@ migration-new:
 	uv run yoyo new --sql
 
 migration-ls:
-	uv run yoyo list --database "sqlite:///$${SQLITE_PATH:-./bujo_digitizer.sqlite3}"
+	uv run yoyo list --database "sqlite:///$(SQLITE_PATH)"
 
 migrate:
-	uv run yoyo apply --batch --database "sqlite:///$${SQLITE_PATH:-./bujo_digitizer.sqlite3}"
+	uv run yoyo apply --batch --database "sqlite:///$(SQLITE_PATH)"
 
 test:
 	uv run pytest
