@@ -1,4 +1,4 @@
-.PHONY: deps install-deps dev dev-open migration-new migration-ls migrate test lint fmt build build-docker docker-build docker-run
+.PHONY: deps install-deps dev dev-open migration-new migration-ls migrate test lint fmt build build-docker docker-build docker-run docker-down docker-logs
 
 deps:
 	uv sync
@@ -38,4 +38,10 @@ build-docker:
 docker-build: build-docker
 
 docker-run:
-	docker run --rm -p 8000:8000 --env-file .env bujo-digitizer
+	docker compose up --build -d
+
+docker-down:
+	docker compose down
+
+docker-logs:
+	docker compose logs -f app

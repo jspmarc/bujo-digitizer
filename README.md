@@ -144,9 +144,18 @@ Build the Python package:
 make build
 ```
 
-Build and run the container:
+Build and run the container with docker compose (serves on
+`http://localhost:5500`, SQLite persists in `./data`, override the location
+with `DOCKER_DATA_DIR`):
 
 ```sh
-docker build -t bujo-digitizer .
-docker run --rm -p 8000:8000 --env-file .env bujo-digitizer
+make docker-run    # docker compose up --build -d
+make docker-logs   # follow logs
+make docker-down   # stop
+```
+
+Or build a plain image:
+
+```sh
+make build-docker  # docker build -t bujo-digitizer .
 ```
