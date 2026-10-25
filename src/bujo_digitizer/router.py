@@ -165,7 +165,6 @@ class Router:
 				detail=str(exc),
 			)
 
-		await asyncio.to_thread(self._store.delete, id)
 		return HTMLResponse(content="Updated.")
 
 	async def review_delete(self, id: int):
