@@ -75,12 +75,14 @@ def routes(tmp_path):
 		OPENAI_BASE_URL="http://openai.test/v1",
 		PAPERLESS_BASE_URL="http://paperless.test",
 		PAPERLESS_TOKEN="test-token",
+		PAPERLESS_DIGITIZED_TAG_ID=6,
 		OBSIDIAN_BUJO_ENABLED=True,
 	)
-	store = DigitizeResultStore(str(tmp_path / "results.sqlite3"))
+	# Both stores share one file, like production, so the migration covers both tables.
+	db_path = str(tmp_path / "db.sqlite3")
+	store = DigitizeResultStore(db_path)
 	store.initialize()
-	jobs = DigitizeJobStore(str(tmp_path / "jobs.sqlite3"))
-	jobs.initialize()
+	jobs = DigitizeJobStore(db_path)
 	paperless = FakePaperlessController()
 	obsidian = FakeObsidianController()
 	templates = Jinja2Templates(directory=str(resources.files("bujo_digitizer").joinpath("templates")))

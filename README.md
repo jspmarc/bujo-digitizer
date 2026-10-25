@@ -80,6 +80,11 @@ concurrency/polling, `OBSIDIAN_BUJO_ENABLED`,
 `OCR_REASONING_BUDGET_TOKENS`, `PARSER_MODEL`, `PARSER_TEMPERATURE`, and
 `PARSER_REASONING_BUDGET_TOKENS`.
 
+`DOCKER_DATA_DIR` is not an app setting: it is read by `docker-compose.yaml`
+at compose time (shell env or repo-root `.env`) to pick the host directory
+bind-mounted as `/data`, defaulting to `./data`. The container always uses
+`SQLITE_PATH=/data/bujo_digitizer.sqlite3`.
+
 ## Database migrations
 
 Schema changes are migration files under `src/bujo_digitizer/migrations/`, managed by

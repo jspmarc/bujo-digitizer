@@ -23,6 +23,7 @@ def create_app() -> FastAPI:
 
 	store = DigitizeResultStore(settings.sqlite_path)
 	store.initialize()
+	# Both stores back onto the same file, so this migration also creates the jobs table.
 	jobs = DigitizeJobStore(settings.sqlite_path)
 
 	controller = DigitizeController()

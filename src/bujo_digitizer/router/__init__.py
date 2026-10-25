@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Request
+from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from bujo_digitizer.config import Settings
@@ -68,5 +69,5 @@ class Router:
 			).router
 		)
 
-	async def index(self, request: Request):
+	async def index(self, request: Request) -> HTMLResponse:
 		return self._templates.TemplateResponse(request, "index.html")
