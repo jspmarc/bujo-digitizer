@@ -1,7 +1,8 @@
+from datetime import date
 from enum import Enum
 
 from bs4 import ResultSet, Tag
-from pydantic import BaseModel, ConfigDict, Field, RootModel
+from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator
 
 
 class BujoType(str, Enum):
@@ -16,9 +17,17 @@ class BujoType(str, Enum):
 
 
 class BujoEntry(BaseModel):
+	model_config = ConfigDict(frozen=True)
+
 	type: BujoType
 	note: str
 	sub_entries: list[BujoEntry] | None = None
+
+	@field_validator("sub_entries", mode="after")
+	@classmethod
+	def _none_if_empty(cls, value: list[BujoEntry] | None) -> list[BujoEntry] | None:
+		# if value is empty, then return None
+		return value or None
 
 
 class BujoTimeGroup(BaseModel):
@@ -36,6 +45,7 @@ _MARKERS: dict[BujoType, str] = {
 	BujoType.FUTURE_TASK: "[>]",
 	BujoType.OBSIDIAN_TASK: "[<]",
 }
+MARKERS_REVERSE: dict[str, BujoType] = {v.casefold(): k for k, v in _MARKERS.items()}
 
 
 def _format_entries(entries: list[BujoEntry], depth: int = 0) -> list[str]:
@@ -75,3 +85,13 @@ class HealthResponse(BaseModel):
 class PaperlessWebhookPayload(BaseModel):
 	doc_id: int
 	doc_title: str
+	# optional so webhook templates without it keep working; Obsidian updates are skipped when absent
+	created: date | None = None
+
+	@field_validator("created", mode="before")
+	@classmethod
+	def _date_only(cls, value: object) -> object:
+		# Paperless may format `created` as a full ISO datetime; only the date part is needed
+		if isinstance(value, str) and len(value) > 10:
+			return value[:10]
+		return value

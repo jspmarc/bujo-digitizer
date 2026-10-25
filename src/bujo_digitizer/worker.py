@@ -20,6 +20,7 @@ class DigitizeWorker:
 		controller: DigitizeController,
 		paperless_controller: PaperlessController,
 		*,
+		obsidian_enabled: bool = False,
 		poll_interval: float = 2.0,
 		concurrency: int = 1,
 		retry_interval: float = 3600.0,
@@ -28,6 +29,7 @@ class DigitizeWorker:
 		self._store: DigitizeResultStore = store
 		self._controller: DigitizeController = controller
 		self._paperless_controller: PaperlessController = paperless_controller
+		self._obsidian_enabled: bool = obsidian_enabled
 		self._poll_interval: float = poll_interval
 		self._retry_interval: float = retry_interval
 		self._semaphore: asyncio.Semaphore = asyncio.Semaphore(concurrency)
@@ -98,6 +100,11 @@ class DigitizeWorker:
 					f"Document's size is {len(content)} bytes. It's larger than {MAX_BYTES / (1024 * 1024)} MB."
 				)
 
+			doc_created = job["doc_created"]
+			if not doc_created and self._obsidian_enabled:
+				# the webhook may omit `created`; ask Paperless so the Obsidian update is never skipped
+				doc_created = await self._paperless_controller.get_created(doc_id)
+
 			pages = await asyncio.to_thread(to_pages, content)
 			result = await self._controller.digitize(DigitizeRequest(file_urls=[page.data_url for page in pages]))
 
@@ -111,6 +118,7 @@ class DigitizeWorker:
 				self._store.save,
 				doc_id,
 				job["doc_title"],
+				doc_created,
 				parse_result,
 				bbox_elements,
 				[page.image for page in pages],

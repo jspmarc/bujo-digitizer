@@ -19,6 +19,11 @@ class Settings(BaseSettings):
 	worker_retry_interval_seconds: float = Field(default=3600, alias="WORKER_RETRY_INTERVAL_SECONDS")
 	job_max_attempts: int = Field(default=3, alias="JOB_MAX_ATTEMPTS")
 
+	obsidian_bujo_enabled: bool = Field(default=False, alias="OBSIDIAN_BUJO_ENABLED")
+	obsidian_vault_path: str | None = Field(default=None, alias="OBSIDIAN_VAULT_PATH")
+	obsidian_bujo_section: str = Field(default="Bujo", alias="OBSIDIAN_BUJO_SECTION")
+	obsidian_note_template: str = Field(default="{year}/W{week:02d}/{date}.md", alias="OBSIDIAN_NOTE_TEMPLATE")
+
 
 @lru_cache
 def get_settings() -> Settings:
